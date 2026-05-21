@@ -8,7 +8,7 @@
 - Node.js 18+
 - npm or yarn
 - Supabase account (free tier available)
-- Anthropic API key (Claude API)
+- Anthropic API key (groq API)
 
 ### Setup
 
