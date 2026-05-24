@@ -3,6 +3,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { generateSummary } from '../services/claude.service.js';
 import { extractTextFromPDF, validatePDFFile } from '../services/pdf.service.js';
+import { uploadPDFToStorage, deletePDFFromStorage } from '../services/storage.service.js';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../lib/prisma.js';
@@ -55,8 +56,11 @@ router.post(
     // Extract text from PDF
     const rawText = await extractTextFromPDF(req.file.buffer);
 
-    // TODO: Upload to Supabase Storage
-    const fileUrl = `https://storage.example.com/${uuidv4()}.pdf`;
+    // Generate unique lecture ID for storage
+    const lectureId = uuidv4();
+
+    // Upload to Supabase Storage
+    const fileUrl = await uploadPDFToStorage(req.file.originalname || 'lecture.pdf', req.file.buffer, lectureId);
 
     // Create lecture
     const lecture = await prisma.lecture.create({
@@ -173,6 +177,10 @@ router.delete(
       return res.status(404).json({ error: 'Lecture not found' });
     }
 
+    // Delete from Supabase Storage
+    await deletePDFFromStorage(lecture.fileUrl);
+
+    // Delete from database
     await prisma.lecture.delete({ where: { id: req.params.id } });
 
     res.json({ success: true });

@@ -4,7 +4,8 @@ import { LoadingSpinner } from '../components/Common';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { useState, useEffect } from 'react';
-import { RotateCw, CheckCircle, XCircle, ArrowLeft } from 'lucide-react';
+import { RotateCw, CheckCircle, XCircle, ArrowLeft, AlertCircle } from 'lucide-react';
+import type { Flashcard } from '../types';
 
 export default function FlashcardReviewPage() {
   const navigate = useNavigate();
@@ -24,7 +25,14 @@ export default function FlashcardReviewPage() {
     }
   }, [flashcardsError]);
 
-  const flashcards = flashcardsResponse?.data || [];
+  const flashcards: Flashcard[] = Array.isArray(flashcardsResponse?.data?.data) ? flashcardsResponse.data.data : [];
+
+  // Reset currentIndex if out of bounds
+  useEffect(() => {
+    if (currentIndex >= flashcards.length && flashcards.length > 0) {
+      setCurrentIndex(0);
+    }
+  }, [flashcards.length, currentIndex]);
 
   // Log empty array for debugging
   useEffect(() => {
@@ -72,6 +80,34 @@ export default function FlashcardReviewPage() {
     );
   }
 
+  // Error state
+  if (flashcardsError) {
+    return (
+      <Layout>
+        <div className="p-8">
+          <div className="max-w-md mx-auto">
+            <div className="bg-slate-900 border border-red-800 rounded-xl p-12 text-center">
+              <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-8 h-8 text-red-500" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">Error Loading Flashcards</h2>
+              <p className="text-slate-400 mb-6">
+                {(flashcardsError as any)?.response?.data?.error || 'Failed to load flashcards. Please try again.'}
+              </p>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg transition-all"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Empty state
   if (!flashcards || flashcards.length === 0) {
     return (
       <Layout>
@@ -81,8 +117,8 @@ export default function FlashcardReviewPage() {
               <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
                 <RotateCw className="w-8 h-8 text-slate-600" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">No Flashcards Yet</h2>
-              <p className="text-slate-400 mb-6">Generate flashcards from a lecture to start reviewing</p>
+              <h2 className="text-2xl font-bold text-white mb-2">No Flashcards Due</h2>
+              <p className="text-slate-400 mb-6">You have no flashcards due for review right now. Generate flashcards from a lecture to start studying.</p>
               <button
                 onClick={() => navigate('/courses')}
                 className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg transition-all"
@@ -96,7 +132,32 @@ export default function FlashcardReviewPage() {
     );
   }
 
+  // Safety check: ensure currentCard exists
   const currentCard = flashcards[currentIndex];
+  if (!currentCard) {
+    return (
+      <Layout>
+        <div className="p-8">
+          <div className="max-w-md mx-auto">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+              <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-8 h-8 text-slate-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">Flashcard Not Found</h2>
+              <p className="text-slate-400 mb-6">The flashcard you're trying to review is no longer available.</p>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg transition-all"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   const progress = ((reviewed + 1) / flashcards.length) * 100;
 
   return (

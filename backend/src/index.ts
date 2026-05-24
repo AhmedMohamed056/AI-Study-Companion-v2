@@ -1,8 +1,10 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import * as Sentry from '@sentry/node';
-import dotenv from 'dotenv';
 
 import authRoutes from './routes/auth.js';
 import courseRoutes from './routes/courses.js';
@@ -11,12 +13,11 @@ import flashcardRoutes from './routes/flashcards.js';
 import quizRoutes from './routes/quiz.js';
 import analyticsRoutes from './routes/analytics.js';
 import notesRoutes from './routes/notes.js';
+import studyPlansRoutes from './routes/study-plans.js';
 
 import { errorHandler } from './middleware/errorHandler.js';
 import { authMiddleware } from './middleware/auth.js';
 import { prisma } from './lib/prisma.js';
-
-dotenv.config();
 
 const app: Express = express();
 const PORT = process.env.PORT || 3000;
@@ -103,6 +104,7 @@ app.use('/api/flashcards', authMiddleware, flashcardRoutes);
 app.use('/api/quiz', authMiddleware, quizRoutes);
 app.use('/api/analytics', authMiddleware, analyticsRoutes);
 app.use('/api/notes', authMiddleware, notesRoutes);
+app.use('/api/study-plans', authMiddleware, studyPlansRoutes);
 
 // Sentry error handler
 if (process.env.SENTRY_DSN) {

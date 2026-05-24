@@ -1,32 +1,47 @@
 export interface SchedulingResult {
   nextReview: Date;
-  reviewCount: number;
+  interval: number;
+  ease: number;
 }
 
-const REVIEW_INTERVALS = [
-  1, // 1 day
-  3, // 3 days
-  7, // 7 days
-  14, // 14 days
-  30, // 30 days
-  // After 30 days, repeat every 30 days
-];
+export interface FlashcardSchedulingData {
+  interval: number;
+  ease: number;
+  lastReviewDate?: Date;
+}
 
-export function calculateNextReview(reviewCount: number): Date {
+export function calculateNextReview(
+  ease: 'easy' | 'hard' | 'again',
+  currentInterval: number = 1.0,
+  currentEase: number = 2.5
+): SchedulingResult {
   const now = new Date();
   let daysToAdd = 1;
+  let newEase = currentEase;
+  let newInterval = currentInterval;
 
-  if (reviewCount < REVIEW_INTERVALS.length) {
-    daysToAdd = REVIEW_INTERVALS[reviewCount];
-  } else {
-    // After reaching the end, repeat 30-day interval
-    daysToAdd = 30;
+  if (ease === 'easy') {
+    newInterval = currentInterval * 2.5;
+    newEase = Math.max(1.3, currentEase + 0.2);
+    daysToAdd = Math.ceil(newInterval);
+  } else if (ease === 'hard') {
+    newInterval = Math.max(1, currentInterval * 1.2);
+    newEase = Math.max(1.3, currentEase - 0.2);
+    daysToAdd = 1;
+  } else if (ease === 'again') {
+    newInterval = 1.0;
+    newEase = Math.max(1.3, currentEase - 0.3);
+    daysToAdd = 0.0069; // 10 minutes in days (10/1440)
   }
 
   const nextReview = new Date(now);
   nextReview.setDate(nextReview.getDate() + daysToAdd);
 
-  return nextReview;
+  return {
+    nextReview,
+    interval: newInterval,
+    ease: newEase,
+  };
 }
 
 export function getFlashcardsDue(flashcards: any[]): any[] {
@@ -53,5 +68,12 @@ export function calculateSchedulingStats(flashcards: any[]): {
     dueThisMonth: flashcards.filter(
       (card) => new Date(card.nextReview) <= oneMonthFromNow && new Date(card.nextReview) > oneWeekFromNow
     ).length,
+  };
+}
+
+export function initializeFlashcardScheduling(): FlashcardSchedulingData {
+  return {
+    interval: 1.0,
+    ease: 2.5,
   };
 }

@@ -3,6 +3,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { generateQuiz } from '../services/claude.service.js';
 import { prisma } from '../lib/prisma.js';
+import { sendSuccess } from '../utils/response.js';
 
 const router = Router();
 
@@ -88,6 +89,7 @@ router.post(
         correct: answer.correct,
         userAnswer: answer.userAnswer,
         isCorrect,
+        topic: answer.topic || 'General',
       });
     }
 
@@ -127,16 +129,16 @@ router.get(
       include: { lecture: { select: { title: true } } },
     });
 
-    res.json(
-      quizzes.map((q) => ({
-        id: q.id,
-        lectureTitle: q.lecture.title,
-        score: q.score,
-        total: q.total,
-        percentage: Math.round((q.score / q.total) * 100),
-        takenAt: q.takenAt,
-      }))
-    );
+    const history = quizzes.map((q) => ({
+      id: q.id,
+      lectureTitle: q.lecture.title,
+      score: q.score,
+      total: q.total,
+      percentage: Math.round((q.score / q.total) * 100),
+      takenAt: q.takenAt,
+    }));
+
+    return sendSuccess(res, history);
   })
 );
 

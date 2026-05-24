@@ -1,15 +1,22 @@
 import Groq from 'groq-sdk';
 
-console.log('[GROQ] Initializing Groq client...');
-console.log('[GROQ] API Key present:', !!process.env.GROQ_API_KEY);
-console.log('[GROQ] API Key length:', process.env.GROQ_API_KEY?.length || 0);
-console.log('[GROQ] API Key starts with:', process.env.GROQ_API_KEY?.substring(0, 10) || 'MISSING');
+let groq: Groq | null = null;
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+function getGroqClient(): Groq {
+  if (!groq) {
+    console.log('[GROQ] Initializing Groq client...');
+    console.log('[GROQ] API Key present:', !!process.env.GROQ_API_KEY);
+    console.log('[GROQ] API Key length:', process.env.GROQ_API_KEY?.length || 0);
+    console.log('[GROQ] API Key starts with:', process.env.GROQ_API_KEY?.substring(0, 10) || 'MISSING');
 
-console.log('[GROQ] Groq client initialized');
+    groq = new Groq({
+      apiKey: process.env.GROQ_API_KEY,
+    });
+
+    console.log('[GROQ] Groq client initialized');
+  }
+  return groq;
+}
 
 interface SummaryResult {
   title: string;
@@ -27,6 +34,7 @@ interface QuizQuestion {
   question: string;
   options: string[];
   correct: 'A' | 'B' | 'C' | 'D';
+  topic?: string;
 }
 
 async function callGroqWithRetry(
@@ -45,7 +53,7 @@ async function callGroqWithRetry(
         throw new Error('GROQ_API_KEY environment variable is not set');
       }
 
-      const response = await groq.chat.completions.create({
+      const response = await getGroqClient().chat.completions.create({
         model: 'llama-3.3-70b-versatile',
         max_tokens: 2000,
         messages: [{ role: 'user', content: prompt }],
@@ -104,7 +112,7 @@ async function callGroqWithRetry(
       if (attempt === maxRetries - 1) {
         try {
           console.log('[GROQ] Final attempt with strict JSON instruction...');
-          const retry = await groq.chat.completions.create({
+          const retry = await getGroqClient().chat.completions.create({
             model: 'llama-3.3-70b-versatile',
             max_tokens: 2000,
             messages: [
@@ -216,7 +224,8 @@ Format:
 [{
   "question": "string",
   "options": ["A. text", "B. text", "C. text", "D. text"],
-  "correct": "A" | "B" | "C" | "D"
+  "correct": "A" | "B" | "C" | "D",
+  "topic": "main topic or concept being tested"
 }]
 
 Content:
@@ -239,4 +248,49 @@ export function logTokenUsage(feature: string, tokens: number): void {
   const costPerMTok = 0.003; // Claude Sonnet 4.6 input cost
   const cost = (tokens / 1000000) * costPerMTok;
   console.log(`[COST] ${feature}: ${tokens} tokens (~$${cost.toFixed(4)})`);
+}
+
+export async function generateStudyPlan(
+  examDate: string,
+  weakAreas: Array<{ topic: string; percentage: number }>,
+  lectureCount: number
+): Promise<{ plan: string; dailyGoals: string[] }> {
+  console.log('[STUDY_PLAN] Starting study plan generation');
+
+  const now = new Date();
+  const exam = new Date(examDate);
+  const daysUntilExam = Math.ceil((exam.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+  const weakAreasList = weakAreas
+    .slice(0, 5)
+    .map((a) => `${a.topic} (${a.percentage}% mastery)`)
+    .join(', ');
+
+  const prompt = `You are an academic study advisor. Create a personalized study plan for a student with the following context:
+
+- Exam date: ${examDate} (${daysUntilExam} days away)
+- Total lectures to review: ${lectureCount}
+- Weak areas: ${weakAreasList || 'None identified'}
+- Available time: ${daysUntilExam} days
+
+Generate a concise, actionable study plan that:
+1. Prioritizes weak areas
+2. Distributes study sessions across available days
+3. Includes daily study goals
+4. Accounts for review and practice time
+
+Return ONLY valid JSON with no markdown:
+{
+  "plan": "2-3 paragraph study strategy",
+  "dailyGoals": ["Day 1: goal", "Day 2: goal", ...]
+}`;
+
+  const fallback = {
+    plan: 'Unable to generate personalized study plan. Focus on reviewing weak areas and practicing with quizzes.',
+    dailyGoals: [],
+  };
+
+  const result = await callGroqWithRetry(prompt, fallback);
+  console.log('[STUDY_PLAN] Generated study plan');
+  return result;
 }

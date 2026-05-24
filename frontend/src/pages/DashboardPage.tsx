@@ -1,13 +1,17 @@
-import { useQuery } from '@tanstack/react-query';
-import { analyticsService, flashcardService, courseService } from '../services';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { analyticsService, flashcardService, courseService, studyPlanService } from '../services';
 import { useAuthStore } from '../store/auth';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
-import { BookOpen, Zap, BarChart3, TrendingUp, ArrowRight } from 'lucide-react';
+import { BookOpen, Zap, BarChart3, TrendingUp, ArrowRight, Calendar } from 'lucide-react';
+import { useState } from 'react';
 
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const navigate = useNavigate();
+  const [examDate, setExamDate] = useState('');
+  const [showStudyPlanForm, setShowStudyPlanForm] = useState(false);
+  const [studyPlan, setStudyPlan] = useState<{ plan: string; dailyGoals: string[] } | null>(null);
 
   const { data: analytics } = useQuery({
     queryKey: ['analytics'],
@@ -31,6 +35,18 @@ export default function DashboardPage() {
     },
   });
 
+  const studyPlanMutation = useMutation({
+    mutationFn: () => studyPlanService.generateStudyPlan(examDate),
+    onSuccess: (response) => {
+      setStudyPlan(response.data);
+      setShowStudyPlanForm(false);
+    },
+    onError: (error: any) => {
+      console.error('Failed to generate study plan:', error);
+      alert('Failed to generate study plan. Please try again.');
+    },
+  });
+
   const stats = [
     {
       label: 'Courses',
@@ -41,7 +57,7 @@ export default function DashboardPage() {
     },
     {
       label: 'Due Today',
-      value: dueFlashcards?.data?.length || 0,
+      value: dueFlashcards?.data?.data?.length || 0,
       icon: Zap,
       color: 'from-purple-600 to-purple-700',
       bgColor: 'bg-purple-500/10',
@@ -120,7 +136,7 @@ export default function DashboardPage() {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h3 className="text-2xl font-bold text-white mb-2">Review Flashcards</h3>
-                <p className="text-purple-100">{dueFlashcards?.data?.length || 0} cards due today</p>
+                <p className="text-purple-100">{dueFlashcards?.data?.data?.length || 0} cards due today</p>
               </div>
               <div className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center group-hover:bg-white/20 transition-colors">
                 <Zap className="w-6 h-6 text-white" />
@@ -151,6 +167,101 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Study Plan Section */}
+        <div className="mt-12">
+          {!studyPlan ? (
+            <div className="bg-gradient-to-br from-amber-900/30 to-orange-900/30 border border-amber-700/50 rounded-xl p-8">
+              <div className="flex items-start justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+                    <Calendar className="w-6 h-6" />
+                    Personalized Study Plan
+                  </h2>
+                  <p className="text-amber-100">Get an AI-powered study plan tailored to your exam date and weak areas</p>
+                </div>
+              </div>
+
+              {showStudyPlanForm ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">Exam Date</label>
+                    <input
+                      type="date"
+                      value={examDate}
+                      onChange={(e) => setExamDate(e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => studyPlanMutation.mutate()}
+                      disabled={!examDate || studyPlanMutation.isPending}
+                      className="px-6 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-700 text-white rounded-lg font-medium transition-colors"
+                    >
+                      {studyPlanMutation.isPending ? 'Generating...' : 'Generate Plan'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowStudyPlanForm(false);
+                        setExamDate('');
+                      }}
+                      className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowStudyPlanForm(true)}
+                  className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                >
+                  <Calendar className="w-4 h-4" />
+                  Create Study Plan
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="bg-gradient-to-br from-green-900/30 to-emerald-900/30 border border-green-700/50 rounded-xl p-8">
+              <div className="flex items-start justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                  <Calendar className="w-6 h-6" />
+                  Your Study Plan
+                </h2>
+                <button
+                  onClick={() => setStudyPlan(null)}
+                  className="text-sm px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
+                >
+                  New Plan
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-3">Study Strategy</h3>
+                  <p className="text-green-100 leading-relaxed">{studyPlan.plan}</p>
+                </div>
+
+                {studyPlan.dailyGoals && studyPlan.dailyGoals.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-3">Daily Goals</h3>
+                    <div className="space-y-2">
+                      {studyPlan.dailyGoals.map((goal, idx) => (
+                        <div key={idx} className="flex items-start gap-3 p-3 bg-slate-800/50 rounded-lg">
+                          <div className="w-6 h-6 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-white text-sm font-bold">{idx + 1}</span>
+                          </div>
+                          <p className="text-green-100">{goal}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Layout>

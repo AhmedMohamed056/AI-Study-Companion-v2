@@ -2,8 +2,9 @@ import { Router, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { generateFlashcards } from '../services/claude.service.js';
-import { calculateNextReview } from '../services/spaced-repetition.service.js';
+import { calculateNextReview, initializeFlashcardScheduling } from '../services/spaced-repetition.service.js';
 import { prisma } from '../lib/prisma.js';
+import { sendSuccess } from '../utils/response.js';
 
 const router = Router();
 
@@ -22,7 +23,7 @@ router.get(
       orderBy: { createdAt: 'asc' },
     });
 
-    res.json(flashcards);
+    return sendSuccess(res, flashcards);
   })
 );
 
@@ -40,7 +41,7 @@ router.get(
       orderBy: { nextReview: 'asc' },
     });
 
-    res.json(flashcards);
+    return sendSuccess(res, flashcards);
   })
 );
 
@@ -72,12 +73,18 @@ router.post(
       return res.status(400).json({ error: 'Please generate summary first' });
     }
 
-    // Use raw_text if available, otherwise use summary
-    const textToUse = lecture.rawText || lecture.summary;
+    // Parse summary JSON and extract the summary text
+    let summaryText = lecture.summary;
+    try {
+      const summaryObj = JSON.parse(lecture.summary);
+      summaryText = summaryObj.summary || lecture.summary;
+    } catch (e) {
+      console.log('[FLASHCARDS_ROUTE] Summary is not JSON, using as-is');
+    }
 
     // Generate flashcards
     console.log('[FLASHCARDS_ROUTE] Calling generateFlashcards service');
-    const generatedCards = await generateFlashcards(textToUse);
+    const generatedCards = await generateFlashcards(summaryText);
 
     console.log('[FLASHCARDS_ROUTE] Flashcards generated, count:', Array.isArray(generatedCards) ? generatedCards.length : 0);
     if (Array.isArray(generatedCards) && generatedCards.length === 0) {
@@ -86,6 +93,9 @@ router.post(
     if (Array.isArray(generatedCards) && generatedCards.length > 0) {
       console.log('[FLASHCARDS_ROUTE] First flashcard:', JSON.stringify(generatedCards[0], null, 2));
     }
+
+    // Initialize scheduling data
+    const schedulingData = initializeFlashcardScheduling();
 
     // Save flashcards
     const flashcards = await Promise.all(
@@ -97,13 +107,15 @@ router.post(
             front: card.front,
             back: card.back,
             nextReview: new Date(),
+            interval: schedulingData.interval,
+            ease: schedulingData.ease,
           },
         })
       )
     );
 
     console.log('[FLASHCARDS_ROUTE] Flashcards saved to database, count:', flashcards.length);
-    res.status(201).json(flashcards);
+    return sendSuccess(res, flashcards, 201);
   })
 );
 
@@ -123,19 +135,22 @@ router.patch(
       return res.status(404).json({ error: 'Flashcard not found' });
     }
 
-    // Calculate next review date
-    const nextReview = calculateNextReview(flashcard.reviewCount);
+    // Calculate next review date using SM-2 algorithm
+    const scheduling = calculateNextReview(ease, flashcard.interval, flashcard.ease);
 
-    // Update flashcard
+    // Update flashcard with new scheduling data
     const updated = await prisma.flashcard.update({
       where: { id: req.params.id },
       data: {
-        nextReview,
+        nextReview: scheduling.nextReview,
+        interval: scheduling.interval,
+        ease: scheduling.ease,
         reviewCount: flashcard.reviewCount + 1,
+        lastReviewDate: new Date(),
       },
     });
 
-    res.json({ nextReview: updated.nextReview });
+    return sendSuccess(res, { nextReview: updated.nextReview, interval: updated.interval, ease: updated.ease });
   })
 );
 
@@ -151,7 +166,7 @@ router.delete(
 
     await prisma.flashcard.delete({ where: { id: req.params.id } });
 
-    res.json({ success: true });
+    return sendSuccess(res, { success: true });
   })
 );
 

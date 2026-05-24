@@ -152,7 +152,7 @@ export default function LectureDetailPage() {
     },
     onSuccess: (response) => {
       console.log('[FLASHCARDS] Response:', response);
-      const count = response.data?.length || 0;
+      const count = response.data.data?.length || 0;
       setFlashcardsCount(count);
       setToast({ type: 'success', message: `${count} flashcards generated!` });
       setTimeout(() => setToast(null), 3000);

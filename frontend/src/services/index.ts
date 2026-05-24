@@ -62,3 +62,8 @@ export const noteService = {
     api.patch(`/api/notes/${noteId}`, { content }),
   deleteNote: (noteId: string) => api.delete(`/api/notes/${noteId}`),
 };
+
+export const studyPlanService = {
+  generateStudyPlan: (examDate: string) =>
+    api.post('/api/study-plans/generate', { examDate }),
+};
