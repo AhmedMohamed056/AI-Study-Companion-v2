@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
-import { BookOpen, BarChart3, Zap, LogOut, Menu, X } from 'lucide-react';
+import { BookOpen, BarChart3, Zap, LogOut, Menu, X, Users, Share2 } from 'lucide-react';
 import { useState } from 'react';
 
 interface LayoutProps {
@@ -22,7 +22,9 @@ export default function Layout({ children }: LayoutProps) {
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: BarChart3 },
     { path: '/courses', label: 'Courses', icon: BookOpen },
-    { path: '/review', label: 'Flashcards', icon: Zap },
+    { path: '/lectures', label: 'Lectures', icon: Zap },
+    { path: '/study-groups', label: 'Study Groups', icon: Users },
+    { path: '/shared-with-me', label: 'Shared with Me', icon: Share2 },
   ];
 
   const isActive = (path: string) => location.pathname === path;

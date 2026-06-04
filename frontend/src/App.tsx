@@ -6,10 +6,17 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import CoursesPage from './pages/CoursesPage';
+import LecturesPage from './pages/LecturesPage';
 import LectureDetailPage from './pages/LectureDetailPage';
 import FlashcardReviewPage from './pages/FlashcardReviewPage';
 import QuizPage from './pages/QuizPage';
 import QuizResultsPage from './pages/QuizResultsPage';
+import StudyGroupsPage from './pages/StudyGroupsPage';
+import StudyGroupDetailPage from './pages/StudyGroupDetailPage';
+import AcceptInvitationPage from './pages/AcceptInvitationPage';
+import SharedWithMePage from './pages/SharedWithMePage';
+import SharedFlashcardViewPage from './pages/SharedFlashcardViewPage';
+import SharedQuizViewPage from './pages/SharedQuizViewPage';
 
 const queryClient = new QueryClient();
 
@@ -42,6 +49,14 @@ function App() {
             }
           />
           <Route
+            path="/lectures"
+            element={
+              <ProtectedRoute>
+                <LecturesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/lectures/:id"
             element={
               <ProtectedRoute>
@@ -51,6 +66,14 @@ function App() {
           />
           <Route
             path="/review"
+            element={
+              <ProtectedRoute>
+                <FlashcardReviewPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/lectures/:lectureId/review"
             element={
               <ProtectedRoute>
                 <FlashcardReviewPage />
@@ -70,6 +93,54 @@ function App() {
             element={
               <ProtectedRoute>
                 <QuizResultsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/study-groups"
+            element={
+              <ProtectedRoute>
+                <StudyGroupsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/study-groups/:id"
+            element={
+              <ProtectedRoute>
+                <StudyGroupDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/accept-invitation/:token"
+            element={
+              <ProtectedRoute>
+                <AcceptInvitationPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/shared-with-me"
+            element={
+              <ProtectedRoute>
+                <SharedWithMePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/shared/flashcard/:shareToken"
+            element={
+              <ProtectedRoute>
+                <SharedFlashcardViewPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/shared/quiz/:shareToken"
+            element={
+              <ProtectedRoute>
+                <SharedQuizViewPage />
               </ProtectedRoute>
             }
           />

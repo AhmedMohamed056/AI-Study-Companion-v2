@@ -93,13 +93,15 @@ router.post(
       });
     }
 
-    // Create quiz record
+    // Create quiz record with source metadata
     const quiz = await prisma.quiz.create({
       data: {
         lectureId,
         userId: req.userId!,
         score,
         total: answers.length,
+        sourceLectureTitle: lecture.title,
+        sourceCreatedAt: new Date(),
         questions: {
           create: quizQuestions.map((q) => ({
             ...q,
@@ -126,15 +128,30 @@ router.get(
     const quizzes = await prisma.quiz.findMany({
       where: { userId: req.userId },
       orderBy: { takenAt: 'desc' },
-      include: { lecture: { select: { title: true } } },
+      include: {
+        lecture: {
+          select: {
+            id: true,
+            title: true,
+            courseId: true,
+            course: {
+              select: { id: true, title: true },
+            },
+          },
+        },
+      },
     });
 
     const history = quizzes.map((q) => ({
       id: q.id,
+      lectureId: q.lecture.id,
       lectureTitle: q.lecture.title,
+      courseName: q.lecture.course?.title,
       score: q.score,
       total: q.total,
       percentage: Math.round((q.score / q.total) * 100),
+      sourceLectureTitle: q.sourceLectureTitle || q.lecture.title,
+      sourceCreatedAt: q.sourceCreatedAt || q.takenAt,
       takenAt: q.takenAt,
     }));
 

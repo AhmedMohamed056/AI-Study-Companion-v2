@@ -19,9 +19,20 @@ export default function RegisterPage() {
     onSuccess: (response) => {
       console.log('[REGISTER] Success response:', response);
       console.log('[REGISTER] Response data:', response.data);
-      const { token, user } = response.data.data || response.data;
+
+      // Extract from response.data.data (backend wraps response)
+      const responseData = response.data.data || response.data;
+      const { token, user } = responseData;
+
       console.log('[REGISTER] Extracted token:', token ? 'token found' : 'token missing');
       console.log('[REGISTER] Extracted user:', user);
+
+      if (!token || !user) {
+        console.error('[REGISTER] Missing token or user in response');
+        setError('Invalid server response. Please try again.');
+        return;
+      }
+
       setError('');
       setToken(token);
       setUser(user);

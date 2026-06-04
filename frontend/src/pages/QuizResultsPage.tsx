@@ -1,11 +1,14 @@
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import Layout from '../components/Layout';
-import { ArrowLeft, Trophy, Target, TrendingUp, CheckCircle, XCircle, Award } from 'lucide-react';
+import { ArrowLeft, Trophy, Target, TrendingUp, CheckCircle, XCircle, Award, Share2 } from 'lucide-react';
+import { ShareModal } from '../components/ShareModal';
 
 export default function QuizResultsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const results = location.state;
+  const [showShareModal, setShowShareModal] = useState(false);
 
   if (!results) {
     return (
@@ -45,14 +48,23 @@ export default function QuizResultsPage() {
     <Layout>
       <div className="p-8">
         {/* Header */}
-        <div className="mb-8 flex items-center gap-4">
+        <div className="mb-8 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-6 h-6 text-slate-400" />
+            </button>
+            <h1 className="text-4xl font-bold text-white">Quiz Results</h1>
+          </div>
           <button
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+            onClick={() => setShowShareModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
           >
-            <ArrowLeft className="w-6 h-6 text-slate-400" />
+            <Share2 className="w-4 h-4" />
+            Share
           </button>
-          <h1 className="text-4xl font-bold text-white">Quiz Results</h1>
         </div>
 
         <div className="max-w-4xl mx-auto space-y-8">
@@ -201,6 +213,13 @@ export default function QuizResultsPage() {
           </div>
         </div>
       </div>
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={showShareModal}
+        title="Quiz Results"
+        onClose={() => setShowShareModal(false)}
+      />
     </Layout>
   );
 }

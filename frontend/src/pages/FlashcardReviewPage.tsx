@@ -1,26 +1,30 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { flashcardService } from '../services';
 import { LoadingSpinner } from '../components/Common';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { useState, useEffect } from 'react';
-import { RotateCw, CheckCircle, XCircle, ArrowLeft, AlertCircle } from 'lucide-react';
+import { RotateCw, CheckCircle, XCircle, ArrowLeft, AlertCircle, Share2 } from 'lucide-react';
+import { ShareModal } from '../components/ShareModal';
 import type { Flashcard } from '../types';
 
 export default function FlashcardReviewPage() {
   const navigate = useNavigate();
+  const { lectureId } = useParams<{ lectureId?: string }>();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [reviewed, setReviewed] = useState(0);
+  const [showShareModal, setShowShareModal] = useState(false);
 
+  // If lectureId is provided, fetch flashcards for that lecture, otherwise fetch due flashcards
   const { data: flashcardsResponse, isLoading, error: flashcardsError } = useQuery({
-    queryKey: ['flashcards', 'due'],
-    queryFn: () => flashcardService.getDueFlashcards(),
+    queryKey: lectureId ? ['flashcards', 'lecture', lectureId] : ['flashcards', 'due'],
+    queryFn: () => (lectureId ? flashcardService.getFlashcards(lectureId) : flashcardService.getDueFlashcards()),
   });
 
   useEffect(() => {
     if (flashcardsError) {
-      console.error('[FLASHCARDS] Error fetching due flashcards:', flashcardsError);
+      console.error('[FLASHCARDS] Error fetching flashcards:', flashcardsError);
       console.error('[FLASHCARDS] Error details:', (flashcardsError as any).response?.data);
     }
   }, [flashcardsError]);
@@ -42,15 +46,24 @@ export default function FlashcardReviewPage() {
   }, [flashcards, isLoading, flashcardsResponse]);
 
   const reviewMutation = useMutation({
-    mutationFn: (ease: 'easy' | 'hard' | 'again') =>
-      flashcardService.reviewFlashcard(flashcards[currentIndex]?.id, ease),
+    mutationFn: (ease: 'easy' | 'hard' | 'again') => {
+      const currentFlashcard = flashcards[currentIndex];
+      if (!currentFlashcard?.id) {
+        return Promise.reject(new Error('No flashcard available'));
+      }
+      return flashcardService.reviewFlashcard(currentFlashcard.id, ease);
+    },
     onSuccess: () => {
       setReviewed(reviewed + 1);
       if (currentIndex < flashcards.length - 1) {
         setCurrentIndex(currentIndex + 1);
         setIsFlipped(false);
       } else {
-        navigate('/dashboard');
+        if (lectureId) {
+          navigate(`/lectures/${lectureId}`);
+        } else {
+          navigate('/dashboard');
+        }
       }
     },
   });
@@ -95,10 +108,10 @@ export default function FlashcardReviewPage() {
                 {(flashcardsError as any)?.response?.data?.error || 'Failed to load flashcards. Please try again.'}
               </p>
               <button
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate(lectureId ? `/lectures/${lectureId}` : '/dashboard')}
                 className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg transition-all"
               >
-                Back to Dashboard
+                {lectureId ? 'Back to Lecture' : 'Back to Dashboard'}
               </button>
             </div>
           </div>
@@ -117,13 +130,17 @@ export default function FlashcardReviewPage() {
               <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
                 <RotateCw className="w-8 h-8 text-slate-600" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">No Flashcards Due</h2>
-              <p className="text-slate-400 mb-6">You have no flashcards due for review right now. Generate flashcards from a lecture to start studying.</p>
+              <h2 className="text-2xl font-bold text-white mb-2">No Flashcards {lectureId ? 'for this Lecture' : 'Due'}</h2>
+              <p className="text-slate-400 mb-6">
+                {lectureId
+                  ? 'Generate flashcards from this lecture to start studying.'
+                  : 'You have no flashcards due for review right now. Generate flashcards from a lecture to start studying.'}
+              </p>
               <button
-                onClick={() => navigate('/courses')}
+                onClick={() => navigate(lectureId ? `/lectures/${lectureId}` : '/courses')}
                 className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg transition-all"
               >
-                Go to Courses
+                {lectureId ? 'Back to Lecture' : 'Go to Courses'}
               </button>
             </div>
           </div>
@@ -146,10 +163,10 @@ export default function FlashcardReviewPage() {
               <h2 className="text-2xl font-bold text-white mb-2">Flashcard Not Found</h2>
               <p className="text-slate-400 mb-6">The flashcard you're trying to review is no longer available.</p>
               <button
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate(lectureId ? `/lectures/${lectureId}` : '/dashboard')}
                 className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg transition-all"
               >
-                Back to Dashboard
+                {lectureId ? 'Back to Lecture' : 'Back to Dashboard'}
               </button>
             </div>
           </div>
@@ -166,15 +183,32 @@ export default function FlashcardReviewPage() {
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              if (lectureId) {
+                navigate(`/lectures/${lectureId}`);
+              } else {
+                navigate(-1);
+              }
+            }}
             className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-6 h-6 text-slate-400" />
           </button>
-          <h1 className="text-3xl font-bold text-white">Flashcard Review</h1>
-          <div className="text-right">
-            <p className="text-slate-400 text-sm">Card {currentIndex + 1} of {flashcards.length}</p>
-            <p className="text-white font-semibold">{reviewed} reviewed</p>
+          <h1 className="text-3xl font-bold text-white">
+            {lectureId ? 'Lecture Flashcards' : 'Flashcard Review'}
+          </h1>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+            >
+              <Share2 className="w-4 h-4" />
+              Share
+            </button>
+            <div className="text-right">
+              <p className="text-slate-400 text-sm">Card {currentIndex + 1} of {flashcards.length}</p>
+              <p className="text-white font-semibold">{reviewed} reviewed</p>
+            </div>
           </div>
         </div>
 
@@ -268,6 +302,13 @@ export default function FlashcardReviewPage() {
           </p>
         </div>
       </div>
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={showShareModal}
+        title="Flashcard Set"
+        onClose={() => setShowShareModal(false)}
+      />
     </Layout>
   );
 }

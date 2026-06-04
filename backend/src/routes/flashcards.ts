@@ -20,10 +20,30 @@ router.get(
 
     const flashcards = await prisma.flashcard.findMany({
       where: { lectureId: lectureId as string, userId: req.userId },
+      include: {
+        lecture: {
+          select: {
+            id: true,
+            title: true,
+            courseId: true,
+            course: {
+              select: { id: true, title: true },
+            },
+          },
+        },
+      },
       orderBy: { createdAt: 'asc' },
     });
 
-    return sendSuccess(res, flashcards);
+    // Enrich with source metadata
+    const enriched = flashcards.map(fc => ({
+      ...fc,
+      sourceLectureTitle: fc.lecture.title,
+      sourceLectureCourse: fc.lecture.course?.title,
+      sourceCreatedAt: fc.sourceCreatedAt || fc.createdAt,
+    }));
+
+    return sendSuccess(res, enriched);
   })
 );
 
@@ -38,10 +58,30 @@ router.get(
         userId: req.userId,
         nextReview: { lte: now },
       },
+      include: {
+        lecture: {
+          select: {
+            id: true,
+            title: true,
+            courseId: true,
+            course: {
+              select: { id: true, title: true },
+            },
+          },
+        },
+      },
       orderBy: { nextReview: 'asc' },
     });
 
-    return sendSuccess(res, flashcards);
+    // Enrich with source metadata
+    const enriched = flashcards.map(fc => ({
+      ...fc,
+      sourceLectureTitle: fc.lecture.title,
+      sourceLectureCourse: fc.lecture.course?.title,
+      sourceCreatedAt: fc.sourceCreatedAt || fc.createdAt,
+    }));
+
+    return sendSuccess(res, enriched);
   })
 );
 
@@ -97,7 +137,7 @@ router.post(
     // Initialize scheduling data
     const schedulingData = initializeFlashcardScheduling();
 
-    // Save flashcards
+    // Save flashcards with source metadata
     const flashcards = await Promise.all(
       generatedCards.map((card) =>
         prisma.flashcard.create({
@@ -106,6 +146,8 @@ router.post(
             userId: req.userId!,
             front: card.front,
             back: card.back,
+            sourceLectureTitle: lecture.title,
+            sourceCreatedAt: new Date(),
             nextReview: new Date(),
             interval: schedulingData.interval,
             ease: schedulingData.ease,

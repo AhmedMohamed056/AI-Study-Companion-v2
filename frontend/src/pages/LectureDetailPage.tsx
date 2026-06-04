@@ -1,10 +1,13 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { lectureService, flashcardService, quizService, noteService } from '../services';
+import { sharingAPI } from '../services/api';
+import { useAuthStore } from '../store/auth';
 import { LoadingSpinner } from '../components/Common';
 import Layout from '../components/Layout';
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Sparkles, BookOpen, Brain, CheckCircle, AlertCircle, Trash2, Edit2 } from 'lucide-react';
+import { ArrowLeft, Sparkles, BookOpen, Brain, CheckCircle, AlertCircle, Trash2, Edit2, RotateCw, Share2 } from 'lucide-react';
+import { ShareModal } from '../components/ShareModal';
 
 type SummaryData = {
   title: string;
@@ -25,6 +28,11 @@ export default function LectureDetailPage() {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [sharedFlashcardSet, setSharedFlashcardSet] = useState<any>(null);
+  const [sharedQuizSet, setSharedQuizSet] = useState<any>(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareType, setShareType] = useState<'flashcard' | 'quiz'>('flashcard');
 
   const { data: lecture, isLoading } = useQuery({
     queryKey: ['lecture', id],
@@ -230,6 +238,163 @@ export default function LectureDetailPage() {
     },
   });
 
+  const shareFlashcardsMutation = useMutation({
+    mutationFn: (userIds: string[]) => {
+      if (!sharedFlashcardSet?.id) throw new Error('No shared set created yet');
+      return sharingAPI.shareFlashcardWith(sharedFlashcardSet.id, userIds);
+    },
+    onSuccess: () => {
+      setToast({ type: 'success', message: 'Flashcards shared successfully!' });
+      setTimeout(() => setToast(null), 3000);
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error || 'Failed to share flashcards';
+      setToast({ type: 'error', message: errorMessage });
+      setTimeout(() => setToast(null), 3000);
+    },
+  });
+
+  const togglePublicFlashcardsMutation = useMutation({
+    mutationFn: () => {
+      if (!sharedFlashcardSet?.id) throw new Error('No shared set created yet');
+      return sharingAPI.toggleFlashcardPublic(sharedFlashcardSet.id);
+    },
+    onSuccess: (response) => {
+      const updated = response.data?.data || response.data;
+      setSharedFlashcardSet(updated);
+      setToast({ type: 'success', message: `Flashcards set to ${updated.isPublic ? 'public' : 'private'}!` });
+      setTimeout(() => setToast(null), 3000);
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error || 'Failed to toggle public status';
+      setToast({ type: 'error', message: errorMessage });
+      setTimeout(() => setToast(null), 3000);
+    },
+  });
+
+  const createSharedFlashcardSetMutation = useMutation({
+    mutationFn: (flashcardIds: string[]) =>
+      sharingAPI.createFlashcardSet(flashcardIds, `${lectureData?.title} - Flashcards`),
+    onSuccess: (response) => {
+      const created = response.data?.data || response.data;
+      setSharedFlashcardSet(created);
+      setToast({ type: 'success', message: 'Shared set created! Now you can share with users.' });
+      setTimeout(() => setToast(null), 3000);
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error || 'Failed to create shared set';
+      setToast({ type: 'error', message: errorMessage });
+      setTimeout(() => setToast(null), 3000);
+    },
+  });
+
+  const createSharedQuizSetMutation = useMutation({
+    mutationFn: (quizIds: string[]) =>
+      sharingAPI.createQuizSet(quizIds, `${lectureData?.title} - Quiz`),
+    onSuccess: (response) => {
+      const created = response.data?.data || response.data;
+      setSharedQuizSet(created);
+      setToast({ type: 'success', message: 'Quiz share created! Now you can share with users.' });
+      setTimeout(() => setToast(null), 3000);
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error || 'Failed to create quiz share';
+      setToast({ type: 'error', message: errorMessage });
+      setTimeout(() => setToast(null), 3000);
+    },
+  });
+
+  const shareQuizMutation = useMutation({
+    mutationFn: (userIds: string[]) => {
+      if (!sharedQuizSet?.id) throw new Error('No shared quiz created yet');
+      return sharingAPI.shareQuizWith(sharedQuizSet.id, userIds);
+    },
+    onSuccess: () => {
+      setToast({ type: 'success', message: 'Quiz shared successfully!' });
+      setTimeout(() => setToast(null), 3000);
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error || 'Failed to share quiz';
+      setToast({ type: 'error', message: errorMessage });
+      setTimeout(() => setToast(null), 3000);
+    },
+  });
+
+  const togglePublicQuizMutation = useMutation({
+    mutationFn: () => {
+      if (!sharedQuizSet?.id) throw new Error('No shared quiz created yet');
+      return sharingAPI.toggleQuizPublic(sharedQuizSet.id);
+    },
+    onSuccess: (response) => {
+      const updated = response.data?.data || response.data;
+      setSharedQuizSet(updated);
+      setToast({ type: 'success', message: `Quiz set to ${updated.isPublic ? 'public' : 'private'}!` });
+      setTimeout(() => setToast(null), 3000);
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error || 'Failed to toggle public status';
+      setToast({ type: 'error', message: errorMessage });
+      setTimeout(() => setToast(null), 3000);
+    },
+  });
+
+  const handleOpenShareModal = async (type: 'flashcard' | 'quiz' = 'flashcard') => {
+    if (!id) return;
+
+    try {
+      setShareLoading(true);
+      console.log(`[SHARE] Starting ${type} share modal preparation...`);
+
+      const token = useAuthStore.getState().token;
+      console.log('[SHARE] Auth token present:', !!token);
+
+      if (type === 'flashcard') {
+        const flashcardsResponse = await flashcardService.getFlashcards(id);
+        const flashcards = flashcardsResponse.data?.data || flashcardsResponse.data || [];
+
+        console.log('[SHARE] Fetched flashcards count:', flashcards.length);
+
+        if (flashcards.length === 0) {
+          setToast({ type: 'error', message: 'No flashcards to share. Generate flashcards first!' });
+          setTimeout(() => setToast(null), 3000);
+          return;
+        }
+
+        const flashcardIds = flashcards.map((f: any) => f.id);
+        console.log('[SHARE] Creating shared flashcard set with IDs:', flashcardIds);
+
+        await createSharedFlashcardSetMutation.mutateAsync(flashcardIds);
+      } else {
+        const quizzesResponse = await quizService.getHistory();
+        const quizzes = quizzesResponse.data?.data || quizzesResponse.data || [];
+
+        console.log('[SHARE] Fetched quizzes count:', quizzes.length);
+
+        if (quizzes.length === 0) {
+          setToast({ type: 'error', message: 'No quizzes to share. Generate a quiz first!' });
+          setTimeout(() => setToast(null), 3000);
+          return;
+        }
+
+        const quizIds = quizzes.map((q: any) => q.id);
+        console.log('[SHARE] Creating shared quiz set with IDs:', quizIds);
+
+        await createSharedQuizSetMutation.mutateAsync(quizIds);
+      }
+
+      setShowShareModal(true);
+    } catch (error: any) {
+      console.error('[SHARE] Error opening share modal:', error);
+      console.error('[SHARE] Error response:', error.response?.data);
+
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to prepare sharing';
+      setToast({ type: 'error', message: errorMsg });
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Layout>
@@ -246,18 +411,46 @@ export default function LectureDetailPage() {
     <Layout>
       <div className="p-8">
         {/* Header */}
-        <div className="mb-8 flex items-center gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-6 h-6 text-slate-400" />
-          </button>
-          <div>
-            <h1 className="text-4xl font-bold text-white mb-2">{lectureData?.title}</h1>
-            <p className="text-slate-400">
-              Created {new Date(lectureData?.createdAt).toLocaleDateString()}
-            </p>
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-6 h-6 text-slate-400" />
+            </button>
+            <div>
+              <h1 className="text-4xl font-bold text-white mb-2">{lectureData?.title}</h1>
+              <p className="text-slate-400">
+                Created {new Date(lectureData?.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={() => {
+                setShareType('flashcard');
+                handleOpenShareModal('flashcard');
+              }}
+              disabled={shareLoading || createSharedFlashcardSetMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Share flashcards"
+            >
+              <Share2 className="w-4 h-4" />
+              {shareLoading || createSharedFlashcardSetMutation.isPending ? 'Preparing...' : 'Share FC'}
+            </button>
+            <button
+              onClick={() => {
+                setShareType('quiz');
+                handleOpenShareModal('quiz');
+              }}
+              disabled={shareLoading || createSharedQuizSetMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Share quizzes"
+            >
+              <Share2 className="w-4 h-4" />
+              {shareLoading || createSharedQuizSetMutation.isPending ? 'Preparing...' : 'Share Q'}
+            </button>
           </div>
         </div>
 
@@ -518,6 +711,14 @@ export default function LectureDetailPage() {
                     </>
                   )}
                 </button>
+
+                <button
+                  onClick={() => navigate(`/lectures/${id}/review`)}
+                  className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold rounded-lg transition-all duration-200 flex items-center justify-center gap-2"
+                >
+                  <RotateCw className="w-5 h-5" />
+                  <span>Review Flashcards</span>
+                </button>
               </div>
 
               {!summary && (
@@ -569,6 +770,44 @@ export default function LectureDetailPage() {
           </p>
         </div>
       )}
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={showShareModal}
+        title={shareType === 'flashcard'
+          ? `${lectureData?.title || 'Lecture'} Flashcards`
+          : `${lectureData?.title || 'Lecture'} Quizzes`
+        }
+        shareToken={shareType === 'flashcard' ? sharedFlashcardSet?.shareToken : sharedQuizSet?.shareToken}
+        isPublic={shareType === 'flashcard' ? (sharedFlashcardSet?.isPublic || false) : (sharedQuizSet?.isPublic || false)}
+        sharedUsers={shareType === 'flashcard'
+          ? (sharedFlashcardSet?.sharedWith?.map((s: any) => ({
+            id: s.userId,
+            name: s.user?.name || 'Unknown',
+            email: s.user?.email || ''
+          })) || [])
+          : (sharedQuizSet?.sharedWith?.map((s: any) => ({
+            id: s.userId,
+            name: s.user?.name || 'Unknown',
+            email: s.user?.email || ''
+          })) || [])
+        }
+        onClose={() => setShowShareModal(false)}
+        onShareWithUsers={async (userIds) =>
+          shareType === 'flashcard'
+            ? shareFlashcardsMutation.mutate(userIds)
+            : shareQuizMutation.mutate(userIds)
+        }
+        onTogglePublic={async () =>
+          shareType === 'flashcard'
+            ? togglePublicFlashcardsMutation.mutate()
+            : togglePublicQuizMutation.mutate()
+        }
+        isLoading={shareType === 'flashcard'
+          ? (shareFlashcardsMutation.isPending || togglePublicFlashcardsMutation.isPending)
+          : (shareQuizMutation.isPending || togglePublicQuizMutation.isPending)
+        }
+      />
     </Layout>
   );
 }
