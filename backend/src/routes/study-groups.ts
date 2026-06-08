@@ -70,15 +70,47 @@ router.get(
             },
           },
         },
-        sharedFlashcardSets: true,
-        sharedQuizSets: true,
+        sharedFlashcardSets: {
+          include: {
+            creator: {
+              select: { id: true, name: true },
+            },
+            flashcards: {
+              include: {
+                flashcard: true,
+              },
+            },
+          },
+        },
+        sharedQuizSets: {
+          include: {
+            creator: {
+              select: { id: true, name: true },
+            },
+            quizzes: {
+              include: {
+                quiz: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    return sendSuccess(res, groups);
+    const normalized = groups.map((g) => ({
+      ...g,
+      sharedLectures: JSON.parse(g.sharedLectures || '[]'),
+    }));
+    return sendSuccess(res, normalized);
   })
 );
+
+// Helper: parse sharedLectures on a raw group object
+function parseGroup(g: any) {
+  if (!g) return g;
+  return { ...g, sharedLectures: JSON.parse(g.sharedLectures || '[]') };
+}
 
 // Get study group details
 router.get(
@@ -113,6 +145,11 @@ router.get(
             creator: {
               select: { id: true, name: true },
             },
+            flashcards: {
+              include: {
+                flashcard: true,
+              },
+            },
           },
         },
         sharedQuizSets: {
@@ -120,12 +157,17 @@ router.get(
             creator: {
               select: { id: true, name: true },
             },
+            quizzes: {
+              include: {
+                quiz: true,
+              },
+            },
           },
         },
       },
     });
 
-    return sendSuccess(res, group);
+    return sendSuccess(res, parseGroup(group));
   })
 );
 
@@ -311,8 +353,10 @@ router.post(
     if (emails && emails.length > 0) {
       for (const email of emails) {
         try {
+          console.log(`[INVITE] Processing email: ${email}`);
           // Normalize email
           const normalizedEmail = email.toLowerCase().trim();
+          console.log(`[INVITE] Normalized email: ${normalizedEmail}`);
 
           // Check if user already exists
           const existingUser = await prisma.user.findUnique({
@@ -320,17 +364,20 @@ router.post(
           });
 
           if (existingUser) {
+            console.log(`[INVITE] User exists: ${existingUser.id}`);
             // Check if already a member
             const isMember = await prisma.studyGroupMember.findUnique({
               where: { groupId_userId: { groupId: id, userId: existingUser.id } },
             });
 
             if (isMember) {
+              console.log(`[INVITE] User already member`);
               results.skipped++;
               continue;
             }
 
             // Add directly if user exists and not already member
+            console.log(`[INVITE] Adding existing user as member`);
             await prisma.studyGroupMember.upsert({
               where: { groupId_userId: { groupId: id, userId: existingUser.id } },
               update: {},
@@ -338,6 +385,7 @@ router.post(
             });
             results.invited++;
           } else {
+            console.log(`[INVITE] User doesn't exist, creating invitation`);
             // Create invitation for non-existent user
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + 7);
@@ -348,11 +396,13 @@ router.post(
             });
 
             if (existingInvitation && existingInvitation.expiresAt > new Date()) {
+              console.log(`[INVITE] Invitation already exists and not expired`);
               results.skipped++;
               continue;
             }
 
             // Create or update invitation
+            console.log(`[INVITE] Creating/updating invitation`);
             const invitation = await prisma.studyGroupInvitation.upsert({
               where: { groupId_email: { groupId: id, email: normalizedEmail } },
               update: { expiresAt, createdBy: req.userId! },
@@ -364,8 +414,15 @@ router.post(
               },
             });
 
+            console.log(`[INVITE] Invitation created with token: ${invitation.token}`);
+
             // Send email
             const acceptLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/accept-invitation/${invitation.token}`;
+            console.log(`[INVITE] Sending email with link: ${acceptLink}`);
+            console.log(`[INVITE] Group name: ${group.name}`);
+            console.log(`[INVITE] Inviter: ${inviter.name || 'A user'}`);
+            console.log(`[INVITE] Recipient: ${normalizedEmail}`);
+
             const emailSent = await emailService.sendGroupInvitation({
               recipientEmail: normalizedEmail,
               groupName: group.name,
@@ -373,14 +430,19 @@ router.post(
               acceptLink,
             });
 
+            console.log(`[INVITE] Email sent result: ${emailSent}`);
+
             if (emailSent) {
               results.invited++;
             } else {
+              console.error(`[INVITE] Email failed to send`);
               results.failed++;
             }
           }
         } catch (error) {
-          console.error(`Failed to invite ${email}:`, error);
+          console.error(`[INVITE] ✗ Failed to invite ${email}`);
+          console.error(`[INVITE] Error:`, error);
+          console.error(`[INVITE] Error stack:`, (error as any)?.stack);
           results.failed++;
         }
       }
@@ -389,10 +451,37 @@ router.post(
     const updated = await prisma.studyGroup.findUnique({
       where: { id },
       include: {
+        owner: {
+          select: { id: true, name: true, email: true },
+        },
         members: {
           include: {
             user: {
               select: { id: true, name: true, email: true },
+            },
+          },
+        },
+        sharedFlashcardSets: {
+          include: {
+            creator: {
+              select: { id: true, name: true },
+            },
+            flashcards: {
+              include: {
+                flashcard: true,
+              },
+            },
+          },
+        },
+        sharedQuizSets: {
+          include: {
+            creator: {
+              select: { id: true, name: true },
+            },
+            quizzes: {
+              include: {
+                quiz: true,
+              },
             },
           },
         },
@@ -449,12 +538,18 @@ router.post(
     const { id } = req.params;
     const { flashcardIds, title, description } = req.body;
 
+    console.log('[STUDY_GROUP] Add flashcard set - groupId:', id);
+    console.log('[STUDY_GROUP] flashcardIds:', flashcardIds);
+    console.log('[STUDY_GROUP] title:', title);
+
     // Validate inputs
     if (!id || typeof id !== 'string') {
+      console.error('[STUDY_GROUP] Invalid group ID:', id);
       return res.status(400).json({ error: 'Invalid group ID' });
     }
 
     if (!flashcardIds || !Array.isArray(flashcardIds) || flashcardIds.length === 0) {
+      console.error('[STUDY_GROUP] Invalid flashcard IDs');
       return res.status(400).json({ error: 'flashcardIds array is required and cannot be empty' });
     }
 
@@ -529,6 +624,10 @@ router.post(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { quizIds, title, description } = req.body;
+
+    console.log('[STUDY_GROUP] Add quiz set - groupId:', id);
+    console.log('[STUDY_GROUP] quizIds:', quizIds);
+    console.log('[STUDY_GROUP] title:', title);
 
     // Validate inputs
     if (!id || typeof id !== 'string') {
@@ -659,6 +758,106 @@ router.delete(
   })
 );
 
+// Add lectures to study group
+router.post(
+  '/:id/lecture',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    const { lectureIds } = req.body;
+
+    if (!Array.isArray(lectureIds) || lectureIds.length === 0) {
+      return res.status(400).json({ error: 'lectureIds array is required' });
+    }
+
+    const member = await prisma.studyGroupMember.findUnique({
+      where: { groupId_userId: { groupId: id, userId: req.userId! } },
+    });
+    if (!member) {
+      return res.status(403).json({ error: 'You are not a member of this group' });
+    }
+
+    const group = await prisma.studyGroup.findUnique({ where: { id } });
+    if (!group) {
+      return res.status(404).json({ error: 'Study group not found' });
+    }
+
+    // Only fetch lectures belonging to the requester
+    const lectures = await prisma.lecture.findMany({
+      where: { id: { in: lectureIds as string[] }, userId: req.userId! },
+      include: { course: { select: { title: true } } },
+    });
+
+    if (lectures.length === 0) {
+      return res.status(403).json({ error: 'No matching lectures found' });
+    }
+
+    const existing: { lectureId: string }[] = JSON.parse(group.sharedLectures || '[]');
+    const existingIds = new Set(existing.map((e) => e.lectureId));
+
+    const toAdd = lectures
+      .filter((l) => !existingIds.has(l.id))
+      .map((l) => ({
+        lectureId: l.id,
+        title: l.title,
+        fileUrl: l.fileUrl,
+        courseTitle: l.course?.title ?? '',
+      }));
+
+    const merged = [...existing, ...toAdd];
+
+    const updated = await prisma.studyGroup.update({
+      where: { id },
+      data: { sharedLectures: JSON.stringify(merged) },
+      include: {
+        owner: { select: { id: true, name: true, email: true } },
+        members: { include: { user: { select: { id: true, name: true, email: true } } } },
+        sharedFlashcardSets: {
+          include: { creator: { select: { id: true, name: true } }, flashcards: { include: { flashcard: true } } },
+        },
+        sharedQuizSets: {
+          include: { creator: { select: { id: true, name: true } }, quizzes: { include: { quiz: true } } },
+        },
+      },
+    });
+
+    return sendSuccess(res, parseGroup(updated), 201);
+  })
+);
+
+// Remove a lecture from study group
+router.delete(
+  '/:id/lectures/:lectureId',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { id, lectureId } = req.params;
+
+    const member = await prisma.studyGroupMember.findUnique({
+      where: { groupId_userId: { groupId: id, userId: req.userId! } },
+    });
+    if (!member) {
+      return res.status(403).json({ error: 'You are not a member of this group' });
+    }
+
+    const group = await prisma.studyGroup.findUnique({ where: { id } });
+    if (!group) {
+      return res.status(404).json({ error: 'Study group not found' });
+    }
+
+    if (group.createdBy !== req.userId) {
+      return res.status(403).json({ error: 'Only the owner can remove materials' });
+    }
+
+    const existing: { lectureId: string }[] = JSON.parse(group.sharedLectures || '[]');
+    const filtered = existing.filter((e) => e.lectureId !== lectureId);
+
+    await prisma.studyGroup.update({
+      where: { id },
+      data: { sharedLectures: JSON.stringify(filtered) },
+    });
+
+    return sendSuccess(res, { message: 'Lecture removed from group' });
+  })
+);
+
 // Accept study group invitation (must be before /:id routes)
 router.post(
   '/invitations/accept/:token',
@@ -735,6 +934,9 @@ router.post(
       const group = await prisma.studyGroup.findUnique({
         where: { id: invitation.groupId },
         include: {
+          owner: {
+            select: { id: true, name: true, email: true },
+          },
           members: {
             include: {
               user: { select: { id: true, name: true, email: true } },
@@ -745,12 +947,22 @@ router.post(
               creator: {
                 select: { id: true, name: true },
               },
+              flashcards: {
+                include: {
+                  flashcard: true,
+                },
+              },
             },
           },
           sharedQuizSets: {
             include: {
               creator: {
                 select: { id: true, name: true },
+              },
+              quizzes: {
+                include: {
+                  quiz: true,
+                },
               },
             },
           },
@@ -759,7 +971,7 @@ router.post(
 
       return sendSuccess(res, {
         message: 'Successfully joined the study group!',
-        group,
+        group: parseGroup(group),
       });
     } catch (error) {
       console.error('Failed to accept invitation:', error);

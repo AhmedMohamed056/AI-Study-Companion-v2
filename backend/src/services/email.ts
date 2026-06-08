@@ -1,12 +1,28 @@
 import nodemailer from 'nodemailer';
 
-const transporter = nodemailer.createTransport({
-  service: process.env.EMAIL_SERVICE || 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
+let transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
+
+function getTransporter() {
+  if (!transporter) {
+    const emailUser = process.env.EMAIL_USER;
+    const emailPassword = process.env.EMAIL_PASSWORD;
+
+    if (!emailUser || !emailPassword) {
+      console.warn('[EMAIL] Missing EMAIL_USER or EMAIL_PASSWORD environment variables');
+    }
+
+    transporter = nodemailer.createTransport({
+      service: process.env.EMAIL_SERVICE || 'gmail',
+      auth: {
+        user: emailUser,
+        pass: emailPassword,
+      },
+    });
+
+    console.log(`[EMAIL] Transporter initialized with service: ${process.env.EMAIL_SERVICE || 'gmail'}, user: ${emailUser ? '***' : 'not set'}`);
+  }
+  return transporter;
+}
 
 interface InvitationEmailProps {
   recipientEmail: string;
@@ -34,6 +50,10 @@ export const emailService = {
     inviterName,
     acceptLink,
   }: InvitationEmailProps) {
+    console.log('[EMAIL] sendGroupInvitation called');
+    console.log('[EMAIL] Recipient:', recipientEmail);
+    console.log('[EMAIL] Group:', groupName);
+
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(recipientEmail)) {
@@ -120,7 +140,13 @@ If you don't want to join this group, you can simply ignore this email.
     `;
 
     try {
-      await transporter.sendMail({
+      const emailTransporter = getTransporter();
+      console.log('[EMAIL] Transporter ready, attempting to send...');
+      console.log('[EMAIL] From:', process.env.EMAIL_FROM || process.env.EMAIL_USER);
+      console.log('[EMAIL] To:', recipientEmail);
+      console.log('[EMAIL] Service:', process.env.EMAIL_SERVICE || 'gmail');
+
+      const info = await emailTransporter.sendMail({
         from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
         to: recipientEmail,
         subject: `You're invited to join "${sanitizedGroupName}" on StudyAI`,
@@ -128,10 +154,16 @@ If you don't want to join this group, you can simply ignore this email.
         html: htmlContent,
       });
 
-      console.log(`[EMAIL] Invitation sent to ${recipientEmail}`);
+      console.log('[EMAIL] ✓ Invitation sent successfully');
+      console.log('[EMAIL] Message ID:', info.messageId);
+      console.log('[EMAIL] Response:', info.response);
       return true;
-    } catch (error) {
-      console.error('[EMAIL] Failed to send invitation:', error);
+    } catch (error: any) {
+      console.error('[EMAIL] ✗ Failed to send invitation');
+      console.error('[EMAIL] Error name:', error.name);
+      console.error('[EMAIL] Error code:', error.code);
+      console.error('[EMAIL] Error message:', error.message);
+      console.error('[EMAIL] Full error:', JSON.stringify(error, null, 2));
       return false;
     }
   },
