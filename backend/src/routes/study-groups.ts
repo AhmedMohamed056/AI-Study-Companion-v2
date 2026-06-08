@@ -262,7 +262,7 @@ router.post(
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (emails && !emails.every(e => emailRegex.test(e))) {
+    if (emails && !emails.every((e: string) => emailRegex.test(e))) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
