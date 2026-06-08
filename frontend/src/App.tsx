@@ -9,6 +9,7 @@ import CoursesPage from './pages/CoursesPage';
 import LecturesPage from './pages/LecturesPage';
 import LectureDetailPage from './pages/LectureDetailPage';
 import FlashcardReviewPage from './pages/FlashcardReviewPage';
+import FlashcardLectureSelectPage from './pages/FlashcardLectureSelectPage';
 import QuizPage from './pages/QuizPage';
 import QuizResultsPage from './pages/QuizResultsPage';
 import StudyGroupsPage from './pages/StudyGroupsPage';
@@ -68,7 +69,7 @@ function App() {
             path="/review"
             element={
               <ProtectedRoute>
-                <FlashcardReviewPage />
+                <FlashcardLectureSelectPage />
               </ProtectedRoute>
             }
           />

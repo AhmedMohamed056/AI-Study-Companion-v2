@@ -1,4 +1,3 @@
-// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,63 +9,61 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  courses                 Course[]
-  lectures                Lecture[]
-  flashcards              Flashcard[]
-  quizzes                 Quiz[]
-  quizAnswers             QuizQuestion[]
-  notes                   Note[]
-  studyGroupsOwned        StudyGroup[] @relation("owner")
-  studyGroupMemberships   StudyGroupMember[]
-  sentInvitations         StudyGroupInvitation[] @relation("sentBy")
-  sharedFlashcardSets     SharedFlashcardSet[] @relation("creator")
-  sharedQuizSets          SharedQuizSet[] @relation("creator")
-  commentsAuthored        Comment[] @relation("author")
-  sharedFlashcardWith     SharedWith[]
-  sharedQuizWith          SharedQuizWith[]
+  id                    String                 @id @default(cuid())
+  email                 String                 @unique
+  name                  String
+  password              String
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  commentsAuthored      Comment[]              @relation("author")
+  courses               Course[]
+  flashcards            Flashcard[]
+  lectures              Lecture[]
+  notes                 Note[]
+  quizAnswers           QuizQuestion[]
+  quizzes               Quiz[]
+  sharedFlashcardSets   SharedFlashcardSet[]   @relation("creator")
+  sharedQuizSets        SharedQuizSet[]        @relation("creator")
+  sharedQuizWith        SharedQuizWith[]
+  sharedFlashcardWith   SharedWith[]
+  sentInvitations       StudyGroupInvitation[] @relation("sentBy")
+  studyGroupMemberships StudyGroupMember[]
+  studyGroupsOwned      StudyGroup[]           @relation("owner")
+  studyPlan             StudyPlan?
 
   @@map("users")
 }
 
 model Course {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   userId      String
   title       String
   description String?
   examDate    DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lectures Lecture[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lectures    Lecture[]
 
   @@index([userId])
   @@map("courses")
 }
 
 model Lecture {
-  id        String   @id @default(cuid())
-  courseId  String
-  userId    String
-  title     String
-  fileUrl   String
-  rawText   String   @db.Text
-  summary   String?  @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  course       Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  flashcards   Flashcard[]
-  quizzes      Quiz[]
-  notes        Note[]
+  id         String      @id @default(cuid())
+  courseId   String
+  userId     String
+  title      String
+  fileUrl    String
+  rawText    String
+  summary    String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  flashcards Flashcard[]
+  course     Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes      Note[]
+  quizzes    Quiz[]
 
   @@index([courseId])
   @@index([userId])
@@ -74,25 +71,24 @@ model Lecture {
 }
 
 model Flashcard {
-  id              String   @id @default(cuid())
-  lectureId       String
-  userId          String
-  front           String   @db.Text
-  back            String   @db.Text
-  nextReview      DateTime @default(now())
-  reviewCount     Int      @default(0)
-  interval        Float    @default(1.0)
-  ease            Float    @default(2.5)
-  lastReviewDate  DateTime?
-  sourceLectureTitle String?
-  sourceCreatedAt DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  lecture Lecture @relation(fields: [lectureId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  String                   @id @default(cuid())
+  lectureId           String
+  userId              String
+  front               String
+  back                String
+  nextReview          DateTime                 @default(now())
+  reviewCount         Int                      @default(0)
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  ease                Float                    @default(2.5)
+  interval            Float                    @default(1.0)
+  lastReviewDate      DateTime?
+  sourceCreatedAt     DateTime?
+  sourceLectureTitle  String?
+  comments            Comment[]                @relation("flashcardComments")
+  lecture             Lecture                  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  user                User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   sharedFlashcardSets SharedFlashcardSetItem[]
-  comments Comment[] @relation("flashcardComments")
 
   @@index([lectureId])
   @@index([userId])
@@ -101,24 +97,26 @@ model Flashcard {
 }
 
 model Quiz {
-  id        String   @id @default(cuid())
-  lectureId String
-  userId    String
-  score     Int
-  total     Int
+  id                 String              @id @default(cuid())
+  lectureId          String
+  userId             String
+  score              Int
+  total              Int
+  takenAt            DateTime            @default(now())
+  createdAt          DateTime            @default(now())
+  sourceCreatedAt    DateTime?
   sourceLectureTitle String?
-  sourceCreatedAt DateTime?
-  takenAt   DateTime @default(now())
-  createdAt DateTime @default(now())
-
-  lecture  Lecture         @relation(fields: [lectureId], references: [id], onDelete: Cascade)
-  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  questions QuizQuestion[]
-  sharedQuizSets SharedQuizSetItem[]
-  comments Comment[] @relation("quizComments")
+  sharedQuizSetId    String?
+  comments           Comment[]           @relation("quizComments")
+  questions          QuizQuestion[]
+  lecture            Lecture             @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sharedQuizSets     SharedQuizSetItem[]
+  sharedQuizSet      SharedQuizSet?      @relation("recipientAttempts", fields: [sharedQuizSetId], references: [id], onDelete: SetNull)
 
   @@index([lectureId])
   @@index([userId])
+  @@index([sharedQuizSetId])
   @@map("quizzes")
 }
 
@@ -126,16 +124,15 @@ model QuizQuestion {
   id         String   @id @default(cuid())
   quizId     String
   userId     String
-  question   String   @db.Text
-  options    String   @db.Text // JSON array stored as text
+  question   String
+  options    String
   correct    String
   userAnswer String?
   isCorrect  Boolean
-  topic      String?  // Topic/concept for weak area tracking
   createdAt  DateTime @default(now())
-
-  quiz Quiz  @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic      String?
+  quiz       Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([quizId])
   @@index([userId])
@@ -144,49 +141,46 @@ model QuizQuestion {
 
 model Note {
   id        String   @id @default(cuid())
-  content   String   @db.Text
+  content   String
   lectureId String
   userId    String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  lecture Lecture @relation(fields: [lectureId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lecture   Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([lectureId])
   @@index([userId])
   @@map("notes")
 }
 
-// Study Groups for collaborative learning
 model StudyGroup {
-  id        String   @id @default(cuid())
-  name      String
-  description String?
-  createdBy String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  owner           User                  @relation("owner", fields: [createdBy], references: [id], onDelete: Cascade)
-  members         StudyGroupMember[]
-  invitations     StudyGroupInvitation[]
+  id                  String                 @id @default(cuid())
+  name                String
+  description         String?
+  createdBy           String
+  sharedLectures      String                 @default("[]")
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  comments            Comment[]              @relation("groupComments")
   sharedFlashcardSets SharedFlashcardSet[]
-  sharedQuizSets  SharedQuizSet[]
-  comments        Comment[] @relation("groupComments")
+  sharedQuizSets      SharedQuizSet[]
+  invitations         StudyGroupInvitation[]
+  members             StudyGroupMember[]
+  owner               User                   @relation("owner", fields: [createdBy], references: [id], onDelete: Cascade)
 
   @@index([createdBy])
   @@map("study_groups")
 }
 
 model StudyGroupMember {
-  id        String   @id @default(cuid())
-  groupId   String
-  userId    String
-  role      String   @default("member") // "owner" or "member"
-  joinedAt  DateTime @default(now())
-
-  group StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id       String     @id @default(cuid())
+  groupId  String
+  userId   String
+  role     String     @default("member")
+  joinedAt DateTime   @default(now())
+  group    StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, userId])
   @@index([groupId])
@@ -194,19 +188,17 @@ model StudyGroupMember {
   @@map("study_group_members")
 }
 
-// Study Group Invitations
 model StudyGroupInvitation {
-  id        String   @id @default(cuid())
-  groupId   String
-  email     String
-  token     String   @unique @default(cuid())
-  createdBy String
-  expiresAt DateTime
+  id         String     @id @default(cuid())
+  groupId    String
+  email      String
+  token      String     @unique @default(cuid())
+  createdBy  String
+  expiresAt  DateTime
   acceptedAt DateTime?
-  createdAt DateTime @default(now())
-
-  group StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  sentBy User     @relation("sentBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  createdAt  DateTime   @default(now())
+  sentBy     User       @relation("sentBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  group      StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, email])
   @@index([groupId])
@@ -215,23 +207,21 @@ model StudyGroupInvitation {
   @@map("study_group_invitations")
 }
 
-// Shared Flashcard Sets
 model SharedFlashcardSet {
-  id        String   @id @default(cuid())
-  title     String
+  id          String                   @id @default(cuid())
+  title       String
   description String?
-  createdBy String
-  isPublic  Boolean  @default(false)
-  shareToken String  @unique @default(cuid())
-  groupId   String?  // Optional: if part of study group
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  creator     User                    @relation("creator", fields: [createdBy], references: [id], onDelete: Cascade)
+  createdBy   String
+  isPublic    Boolean                  @default(false)
+  shareToken  String                   @unique @default(cuid())
+  groupId     String?
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  comments    Comment[]                @relation("sharedFlashcardComments")
   flashcards  SharedFlashcardSetItem[]
+  creator     User                     @relation("creator", fields: [createdBy], references: [id], onDelete: Cascade)
+  group       StudyGroup?              @relation(fields: [groupId], references: [id])
   sharedWith  SharedWith[]
-  comments    Comment[] @relation("sharedFlashcardComments")
-  group       StudyGroup?             @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   @@index([createdBy])
   @@index([groupId])
@@ -239,12 +229,11 @@ model SharedFlashcardSet {
 }
 
 model SharedFlashcardSetItem {
-  id        String   @id @default(cuid())
-  setId     String
+  id          String             @id @default(cuid())
+  setId       String
   flashcardId String
-
-  set       SharedFlashcardSet @relation(fields: [setId], references: [id], onDelete: Cascade)
-  flashcard Flashcard          @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  flashcard   Flashcard          @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  set         SharedFlashcardSet @relation(fields: [setId], references: [id], onDelete: Cascade)
 
   @@unique([setId, flashcardId])
   @@index([setId])
@@ -252,23 +241,22 @@ model SharedFlashcardSetItem {
   @@map("shared_flashcard_set_items")
 }
 
-// Shared Quiz Sets
 model SharedQuizSet {
-  id        String   @id @default(cuid())
-  title     String
-  description String?
-  createdBy String
-  isPublic  Boolean  @default(false)
-  shareToken String  @unique @default(cuid())
-  groupId   String?  // Optional: if part of study group
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  creator   User                @relation("creator", fields: [createdBy], references: [id], onDelete: Cascade)
-  quizzes   SharedQuizSetItem[]
-  sharedWith SharedQuizWith[]
-  comments  Comment[] @relation("sharedQuizComments")
-  group     StudyGroup?         @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  id               String              @id @default(cuid())
+  title            String
+  description      String?
+  createdBy        String
+  isPublic         Boolean             @default(false)
+  shareToken       String              @unique @default(cuid())
+  groupId          String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  comments         Comment[]           @relation("sharedQuizComments")
+  quizzes          SharedQuizSetItem[]
+  recipientAttempts Quiz[]             @relation("recipientAttempts")
+  creator          User                @relation("creator", fields: [createdBy], references: [id], onDelete: Cascade)
+  group            StudyGroup?         @relation(fields: [groupId], references: [id])
+  sharedWith       SharedQuizWith[]
 
   @@index([createdBy])
   @@index([groupId])
@@ -276,12 +264,11 @@ model SharedQuizSet {
 }
 
 model SharedQuizSetItem {
-  id      String @id @default(cuid())
-  setId   String
-  quizId  String
-
-  set   SharedQuizSet @relation(fields: [setId], references: [id], onDelete: Cascade)
-  quiz  Quiz          @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  id     String        @id @default(cuid())
+  setId  String
+  quizId String
+  quiz   Quiz          @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  set    SharedQuizSet @relation(fields: [setId], references: [id], onDelete: Cascade)
 
   @@unique([setId, quizId])
   @@index([setId])
@@ -289,15 +276,13 @@ model SharedQuizSetItem {
   @@map("shared_quiz_set_items")
 }
 
-// Track which users have access to shared content
 model SharedWith {
-  id        String   @id @default(cuid())
+  id        String             @id @default(cuid())
   setId     String
   userId    String
-  createdAt DateTime @default(now())
-
-  set  SharedFlashcardSet @relation(fields: [setId], references: [id], onDelete: Cascade)
-  user User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime           @default(now())
+  set       SharedFlashcardSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([setId, userId])
   @@index([setId])
@@ -306,13 +291,12 @@ model SharedWith {
 }
 
 model SharedQuizWith {
-  id        String   @id @default(cuid())
+  id        String        @id @default(cuid())
   setId     String
   userId    String
-  createdAt DateTime @default(now())
-
-  set  SharedQuizSet @relation(fields: [setId], references: [id], onDelete: Cascade)
-  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+  set       SharedQuizSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([setId, userId])
   @@index([setId])
@@ -320,34 +304,27 @@ model SharedQuizWith {
   @@map("shared_quiz_with")
 }
 
-// Comments for discussions on shared content
 model Comment {
-  id        String   @id @default(cuid())
-  content   String   @db.Text
-  authorId  String
-
-  // Polymorphic relation - only one should be non-null
-  flashcardId           String?
-  quizId                String?
-  sharedFlashcardSetId  String?
-  sharedQuizSetId       String?
-  studyGroupId          String?
-
-  // Parent comment for threading
-  parentCommentId       String?
-
-  isPinned  Boolean   @default(false)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  author                User                @relation("author", fields: [authorId], references: [id], onDelete: Cascade)
-  flashcard             Flashcard?          @relation("flashcardComments", fields: [flashcardId], references: [id], onDelete: Cascade)
-  quiz                  Quiz?               @relation("quizComments", fields: [quizId], references: [id], onDelete: Cascade)
-  sharedFlashcardSet    SharedFlashcardSet? @relation("sharedFlashcardComments", fields: [sharedFlashcardSetId], references: [id], onDelete: Cascade)
-  sharedQuizSet         SharedQuizSet?      @relation("sharedQuizComments", fields: [sharedQuizSetId], references: [id], onDelete: Cascade)
-  studyGroup            StudyGroup?         @relation("groupComments", fields: [studyGroupId], references: [id], onDelete: Cascade)
-  parentComment         Comment?            @relation("replies", fields: [parentCommentId], references: [id], onDelete: Cascade)
-  replies               Comment[]           @relation("replies")
+  id                   String              @id @default(cuid())
+  content              String
+  authorId             String
+  flashcardId          String?
+  quizId               String?
+  sharedFlashcardSetId String?
+  sharedQuizSetId      String?
+  studyGroupId         String?
+  parentCommentId      String?
+  isPinned             Boolean             @default(false)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  author               User                @relation("author", fields: [authorId], references: [id], onDelete: Cascade)
+  flashcard            Flashcard?          @relation("flashcardComments", fields: [flashcardId], references: [id], onDelete: Cascade)
+  parentComment        Comment?            @relation("replies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies              Comment[]           @relation("replies")
+  quiz                 Quiz?               @relation("quizComments", fields: [quizId], references: [id], onDelete: Cascade)
+  sharedFlashcardSet   SharedFlashcardSet? @relation("sharedFlashcardComments", fields: [sharedFlashcardSetId], references: [id], onDelete: Cascade)
+  sharedQuizSet        SharedQuizSet?      @relation("sharedQuizComments", fields: [sharedQuizSetId], references: [id], onDelete: Cascade)
+  studyGroup           StudyGroup?         @relation("groupComments", fields: [studyGroupId], references: [id], onDelete: Cascade)
 
   @@index([authorId])
   @@index([flashcardId])
@@ -358,3 +335,22 @@ model Comment {
   @@index([parentCommentId])
   @@map("comments")
 }
+
+model StudyPlan {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  examDate          DateTime
+  plan              String
+  dailyGoals        String
+  selectedLectures  String   @default("[]")
+  generatedAt       DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("study_plans")
+}
+
+
+

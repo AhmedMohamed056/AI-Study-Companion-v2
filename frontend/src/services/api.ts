@@ -75,6 +75,9 @@ export const sharingAPI = {
   getQuizSet: (shareToken: string) =>
     api.get(`/sharing/quiz/${shareToken}`),
 
+  submitSharedQuiz: (shareToken: string, answers: any[], lectureId?: string) =>
+    api.post(`/sharing/quiz/${shareToken}/submit`, { answers, lectureId }),
+
   duplicateFlashcardSet: (id: string) =>
     api.post(`/sharing/flashcard/${id}/duplicate`),
 
@@ -120,6 +123,12 @@ export const studyGroupsAPI = {
   removeMaterialFromGroup: (id: string, materialId: string, type: 'flashcard' | 'quiz') =>
     api.delete(`/study-groups/${id}/materials/${materialId}/${type}`),
 
+  addLectureToGroup: (id: string, lectureIds: string[]) =>
+    api.post(`/study-groups/${id}/lecture`, { lectureIds }),
+
+  removeLectureFromGroup: (id: string, lectureId: string) =>
+    api.delete(`/study-groups/${id}/lectures/${lectureId}`),
+
   leaveGroup: (id: string) =>
     api.post(`/study-groups/${id}/leave`),
 
@@ -151,7 +160,7 @@ export const commentsAPI = {
 // Flashcards API
 export const flashcardsAPI = {
   getAllFlashcards: () =>
-    api.get('/flashcards'),
+    api.get('/flashcards/user/all'),
 
   getFlashcard: (id: string) =>
     api.get(`/flashcards/${id}`),
@@ -160,10 +169,10 @@ export const flashcardsAPI = {
 // Quizzes API
 export const quizzesAPI = {
   getAllQuizzes: () =>
-    api.get('/quizzes'),
+    api.get('/quiz/history'),
 
   getQuiz: (id: string) =>
-    api.get(`/quizzes/${id}`),
+    api.get(`/quiz/${id}`),
 };
 
 export default api;

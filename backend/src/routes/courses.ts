@@ -16,12 +16,62 @@ router.get(
 
       const courses = await prisma.course.findMany({
         where: { userId: req.userId },
-        include: { _count: { select: { lectures: true } } },
+        include: {
+          lectures: {
+            orderBy: { createdAt: 'desc' },
+            include: {
+              _count: { select: { flashcards: true } },
+            },
+          },
+          _count: { select: { lectures: true } },
+        },
         orderBy: { createdAt: 'desc' },
       });
 
-      console.log('[COURSES GET] Returning courses:', courses);
-      res.json({ data: courses });
+      // Attach quiz stats (quizCount, avgScore) per lecture
+      const lectureIds = courses.flatMap((c) => c.lectures.map((l) => l.id));
+      const quizAggregates = await prisma.quiz.groupBy({
+        by: ['lectureId'],
+        where: { lectureId: { in: lectureIds }, userId: req.userId },
+        _count: { id: true },
+        _avg: { score: true },
+      });
+      const totalQuestions = await prisma.quizQuestion.groupBy({
+        by: ['quizId'],
+        where: { userId: req.userId },
+        _count: { id: true },
+      });
+      // Build a quizId -> total map for percentage calculation
+      const quizTotalMap = new Map(totalQuestions.map((q) => [q.quizId, q._count.id]));
+      // Build avgScore per lecture (avg of percentages across all quizzes for that lecture)
+      const quizScoresByLecture = await prisma.quiz.findMany({
+        where: { lectureId: { in: lectureIds }, userId: req.userId },
+        select: { lectureId: true, score: true, total: true },
+      });
+      const lectureScoreMap = new Map<string, { sum: number; count: number }>();
+      for (const q of quizScoresByLecture) {
+        const pct = q.total > 0 ? Math.round((q.score / q.total) * 100) : 0;
+        const entry = lectureScoreMap.get(q.lectureId) ?? { sum: 0, count: 0 };
+        entry.sum += pct;
+        entry.count += 1;
+        lectureScoreMap.set(q.lectureId, entry);
+      }
+      const quizCountMap = new Map(quizAggregates.map((a) => [a.lectureId, a._count.id]));
+
+      const enrichedCourses = courses.map((course) => ({
+        ...course,
+        lectures: course.lectures.map((lecture) => {
+          const scoreEntry = lectureScoreMap.get(lecture.id);
+          return {
+            ...lecture,
+            flashcardCount: lecture._count.flashcards,
+            quizCount: quizCountMap.get(lecture.id) ?? 0,
+            avgScore: scoreEntry ? Math.round(scoreEntry.sum / scoreEntry.count) : null,
+          };
+        }),
+      }));
+
+      res.json({ data: enrichedCourses });
     } catch (error: any) {
       console.log('[COURSES] Error fetching courses:', error.message);
       res.status(500).json({ error: `Failed to fetch courses: ${error.message}` });

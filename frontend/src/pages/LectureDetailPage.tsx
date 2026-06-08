@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/auth';
 import { LoadingSpinner } from '../components/Common';
 import Layout from '../components/Layout';
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Sparkles, BookOpen, Brain, CheckCircle, AlertCircle, Trash2, Edit2, RotateCw, Share2 } from 'lucide-react';
+import { ArrowLeft, Sparkles, BookOpen, Brain, CheckCircle, AlertCircle, Trash2, Edit2, RotateCw, Share2, ChevronDown, ChevronUp, Trophy, XCircle } from 'lucide-react';
 import { ShareModal } from '../components/ShareModal';
 
 type SummaryData = {
@@ -33,6 +33,7 @@ export default function LectureDetailPage() {
   const [sharedQuizSet, setSharedQuizSet] = useState<any>(null);
   const [shareLoading, setShareLoading] = useState(false);
   const [shareType, setShareType] = useState<'flashcard' | 'quiz'>('flashcard');
+  const [expandedQuizId, setExpandedQuizId] = useState<string | null>(null);
 
   const { data: lecture, isLoading } = useQuery({
     queryKey: ['lecture', id],
@@ -53,6 +54,16 @@ export default function LectureDetailPage() {
       // Handle both { data: [...] } and [...] response formats
       const normalized = Array.isArray(data) ? data : (data?.data || []);
       return normalized;
+    },
+  });
+
+  const { data: quizHistory } = useQuery({
+    queryKey: ['quiz-history', id],
+    queryFn: () => quizService.getLectureHistory(id!),
+    enabled: !!id,
+    select: (response) => {
+      const data = response.data;
+      return Array.isArray(data) ? data : (data?.data || []);
     },
   });
 
@@ -748,6 +759,74 @@ export default function LectureDetailPage() {
                 </div>
               </div>
             </div>
+
+            {/* Quiz History Card */}
+            {quizHistory && quizHistory.length > 0 && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Trophy className="w-5 h-5 text-yellow-400" />
+                  <h3 className="text-lg font-bold text-white">Quiz History</h3>
+                  <span className="ml-auto text-xs text-slate-400">{quizHistory.length} attempt{quizHistory.length !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="space-y-3">
+                  {quizHistory.map((quiz: any) => (
+                    <div key={quiz.id} className="bg-slate-800/60 rounded-lg overflow-hidden">
+                      <button
+                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-800 transition-colors"
+                        onClick={() => setExpandedQuizId(expandedQuizId === quiz.id ? null : quiz.id)}
+                      >
+                        <div className="text-left">
+                          <p className="text-sm font-semibold text-white">{quiz.percentage}%</p>
+                          <p className="text-xs text-slate-400">
+                            {quiz.score}/{quiz.total} correct · {new Date(quiz.takenAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            quiz.percentage >= 80
+                              ? 'bg-green-500/20 text-green-300'
+                              : quiz.percentage >= 60
+                              ? 'bg-yellow-500/20 text-yellow-300'
+                              : 'bg-red-500/20 text-red-300'
+                          }`}>
+                            {quiz.percentage >= 80 ? 'Great' : quiz.percentage >= 60 ? 'Fair' : 'Poor'}
+                          </span>
+                          {expandedQuizId === quiz.id
+                            ? <ChevronUp className="w-4 h-4 text-slate-400" />
+                            : <ChevronDown className="w-4 h-4 text-slate-400" />
+                          }
+                        </div>
+                      </button>
+                      {expandedQuizId === quiz.id && (
+                        <div className="px-4 pb-4 space-y-2 border-t border-slate-700">
+                          {quiz.questions.map((q: any, idx: number) => (
+                            <div key={q.id} className={`rounded-lg p-3 mt-2 ${q.isCorrect ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                              <div className="flex items-start gap-2">
+                                {q.isCorrect
+                                  ? <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                                  : <XCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                                }
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-white font-medium">{idx + 1}. {q.question}</p>
+                                  <p className="text-xs text-slate-300 mt-1">
+                                    Your answer: <span className={q.isCorrect ? 'text-green-300 font-semibold' : 'text-red-300 font-semibold'}>{q.userAnswer}</span>
+                                  </p>
+                                  {!q.isCorrect && (
+                                    <p className="text-xs text-green-300 mt-0.5">
+                                      Correct: <span className="font-semibold">{q.correct}</span>
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

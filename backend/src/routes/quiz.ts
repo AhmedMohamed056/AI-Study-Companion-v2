@@ -121,6 +121,42 @@ router.post(
   })
 );
 
+// Get quiz history for a specific lecture (with full question detail)
+router.get(
+  '/lecture/:lectureId',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const lecture = await prisma.lecture.findUnique({ where: { id: req.params.lectureId } });
+    if (!lecture || lecture.userId !== req.userId) {
+      return res.status(404).json({ error: 'Lecture not found' });
+    }
+
+    const quizzes = await prisma.quiz.findMany({
+      where: { lectureId: req.params.lectureId, userId: req.userId },
+      orderBy: { takenAt: 'desc' },
+      include: { questions: true },
+    });
+
+    const history = quizzes.map((q) => ({
+      id: q.id,
+      score: q.score,
+      total: q.total,
+      percentage: Math.round((q.score / q.total) * 100),
+      takenAt: q.takenAt,
+      questions: q.questions.map((qu) => ({
+        id: qu.id,
+        question: qu.question,
+        options: typeof qu.options === 'string' ? JSON.parse(qu.options) : qu.options,
+        correct: qu.correct,
+        userAnswer: qu.userAnswer,
+        isCorrect: qu.isCorrect,
+        topic: qu.topic,
+      })),
+    }));
+
+    return sendSuccess(res, history);
+  })
+);
+
 // Get quiz history
 router.get(
   '/history',

@@ -78,4 +78,71 @@ router.get(
   })
 );
 
+// Get recent activity feed
+router.get(
+  '/activity',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.userId!;
+
+    const [courses, lectures, flashcardBatches, quizzes] = await Promise.all([
+      prisma.course.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { id: true, title: true, createdAt: true },
+      }),
+      prisma.lecture.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { id: true, title: true, createdAt: true },
+      }),
+      prisma.flashcard.groupBy({
+        by: ['lectureId'],
+        where: { userId },
+        _max: { createdAt: true },
+        orderBy: { _max: { createdAt: 'desc' } },
+        take: 10,
+      }),
+      prisma.quiz.findMany({
+        where: { userId },
+        orderBy: { takenAt: 'desc' },
+        take: 10,
+        include: { lecture: { select: { title: true } } },
+      }),
+    ]);
+
+    // Resolve lecture titles for flashcard batches
+    const flashcardLectureIds = flashcardBatches.map((b) => b.lectureId);
+    const flashcardLectures = await prisma.lecture.findMany({
+      where: { id: { in: flashcardLectureIds } },
+      select: { id: true, title: true },
+    });
+    const lectureMap = new Map(flashcardLectures.map((l) => [l.id, l.title]));
+
+    const events: { type: string; label: string; subLabel?: string; time: string }[] = [];
+
+    for (const c of courses) {
+      events.push({ type: 'course', label: 'Created course', subLabel: c.title, time: c.createdAt.toISOString() });
+    }
+    for (const l of lectures) {
+      events.push({ type: 'lecture', label: 'Added lecture', subLabel: l.title, time: l.createdAt.toISOString() });
+    }
+    for (const b of flashcardBatches) {
+      const t = b._max.createdAt;
+      if (t) {
+        events.push({ type: 'flashcards', label: 'Generated flashcards', subLabel: lectureMap.get(b.lectureId) ?? 'Unknown lecture', time: t.toISOString() });
+      }
+    }
+    for (const q of quizzes) {
+      const pct = Math.round((q.score / q.total) * 100);
+      events.push({ type: 'quiz', label: `Completed quiz — ${pct}%`, subLabel: q.lecture.title, time: q.takenAt.toISOString() });
+    }
+
+    events.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+    return sendSuccess(res, events.slice(0, 5));
+  })
+);
+
 export default router;

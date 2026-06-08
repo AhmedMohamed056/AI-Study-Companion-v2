@@ -1,12 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users, BookOpen, AlertCircle, Plus, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Users, BookOpen, AlertCircle, Plus, Trash2, X, ExternalLink, FileText, ArrowUpRight } from 'lucide-react';
 import { studyGroupsAPI } from '../services/api';
 import { LoadingSpinner } from '../components/Common';
 import Layout from '../components/Layout';
 import { InviteMemberModal } from '../components/InviteMemberModal';
 import { AddMaterialsModal } from '../components/AddMaterialsModal';
 import { useAuthStore } from '../store/auth';
+
+interface SharedLecture {
+  lectureId: string;
+  title: string;
+  fileUrl: string;
+  courseTitle: string;
+}
 
 interface StudyGroup {
   id: string;
@@ -21,14 +28,11 @@ interface StudyGroup {
     userId: string;
     role: string;
     joinedAt: string;
-    user: {
-      id: string;
-      name: string;
-      email: string;
-    };
+    user: { id: string; name: string; email: string };
   }>;
   sharedFlashcardSets: any[];
   sharedQuizSets: any[];
+  sharedLectures: SharedLecture[];
   owner?: { id: string; name: string; email: string };
 }
 
@@ -46,9 +50,7 @@ export const StudyGroupDetailPage: React.FC = () => {
   const [removingMaterialId, setRemovingMaterialId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (id) {
-      fetchGroupDetail();
-    }
+    if (id) fetchGroupDetail();
   }, [id]);
 
   const fetchGroupDetail = async () => {
@@ -56,8 +58,6 @@ export const StudyGroupDetailPage: React.FC = () => {
       setLoading(true);
       setError(null);
       const response = await studyGroupsAPI.getGroupDetail(id!);
-
-      // Normalize response
       const groupData = response?.data?.data || response?.data;
 
       if (groupData && groupData.id) {
@@ -66,6 +66,7 @@ export const StudyGroupDetailPage: React.FC = () => {
           members: groupData.members || [],
           sharedFlashcardSets: groupData.sharedFlashcardSets || [],
           sharedQuizSets: groupData.sharedQuizSets || [],
+          sharedLectures: groupData.sharedLectures || [],
         });
       }
     } catch (err: any) {
@@ -88,11 +89,15 @@ export const StudyGroupDetailPage: React.FC = () => {
     }
   };
 
-  const handleRemoveMaterial = async (materialId: string, type: 'flashcard' | 'quiz') => {
+  const handleRemoveMaterial = async (materialId: string, type: 'flashcard' | 'quiz' | 'lecture') => {
     if (!window.confirm('Remove this material from the group?')) return;
     try {
       setRemovingMaterialId(materialId);
-      await studyGroupsAPI.removeMaterialFromGroup(id!, materialId, type);
+      if (type === 'lecture') {
+        await studyGroupsAPI.removeLectureFromGroup(id!, materialId);
+      } else {
+        await studyGroupsAPI.removeMaterialFromGroup(id!, materialId, type);
+      }
       fetchGroupDetail();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to remove material');
@@ -138,7 +143,15 @@ export const StudyGroupDetailPage: React.FC = () => {
   }
 
   const memberCount = group.members?.length || 0;
-  const materialCount = (group.sharedFlashcardSets?.length || 0) + (group.sharedQuizSets?.length || 0);
+  const materialCount =
+    (group.sharedFlashcardSets?.length || 0) +
+    (group.sharedQuizSets?.length || 0) +
+    (group.sharedLectures?.length || 0);
+
+  const hasAnyMaterial =
+    (group.sharedFlashcardSets?.length > 0) ||
+    (group.sharedQuizSets?.length > 0) ||
+    (group.sharedLectures?.length > 0);
 
   return (
     <Layout>
@@ -167,7 +180,6 @@ export const StudyGroupDetailPage: React.FC = () => {
               </div>
               <p className="text-3xl font-bold text-purple-400">{memberCount}</p>
             </div>
-
             <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
               <div className="flex items-center gap-3 mb-2">
                 <BookOpen className="w-5 h-5 text-blue-400" />
@@ -223,7 +235,7 @@ export const StudyGroupDetailPage: React.FC = () => {
 
           {/* Materials Section */}
           <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-white">Shared Materials</h2>
               {isOwner && (
                 <button
@@ -236,16 +248,23 @@ export const StudyGroupDetailPage: React.FC = () => {
               )}
             </div>
 
+            {/* Flashcard Sets */}
             {group.sharedFlashcardSets && group.sharedFlashcardSets.length > 0 && (
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-white mb-3">Flashcard Sets</h3>
+                <h3 className="text-lg font-semibold text-white mb-3">🃏 Flashcard Sets</h3>
                 <div className="space-y-2">
                   {group.sharedFlashcardSets.map((set) => (
-                    <div key={set.id} className="p-3 bg-slate-800/50 rounded-lg border border-slate-700 flex items-center justify-between">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-white">{set.title}</p>
-                        {set.description && <p className="text-sm text-slate-400">{set.description}</p>}
-                      </div>
+                    <div key={set.id} className="p-3 bg-slate-800/50 rounded-lg border border-slate-700 flex items-center justify-between hover:border-purple-600/40 transition-colors group">
+                      <button
+                        className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                        onClick={() => navigate(`/shared/flashcard/${set.shareToken}`)}
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium text-white group-hover:text-purple-300 transition-colors">{set.title}</p>
+                          {set.description && <p className="text-sm text-slate-400">{set.description}</p>}
+                        </div>
+                        <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-purple-400 flex-shrink-0 transition-colors" />
+                      </button>
                       {isOwner && (
                         <button
                           onClick={() => handleRemoveMaterial(set.id, 'flashcard')}
@@ -261,16 +280,23 @@ export const StudyGroupDetailPage: React.FC = () => {
               </div>
             )}
 
+            {/* Quiz Sets */}
             {group.sharedQuizSets && group.sharedQuizSets.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-3">Quiz Sets</h3>
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-white mb-3">✓ Quiz Sets</h3>
                 <div className="space-y-2">
                   {group.sharedQuizSets.map((set) => (
-                    <div key={set.id} className="p-3 bg-slate-800/50 rounded-lg border border-slate-700 flex items-center justify-between">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-white">{set.title}</p>
-                        {set.description && <p className="text-sm text-slate-400">{set.description}</p>}
-                      </div>
+                    <div key={set.id} className="p-3 bg-slate-800/50 rounded-lg border border-slate-700 flex items-center justify-between hover:border-blue-600/40 transition-colors group">
+                      <button
+                        className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                        onClick={() => navigate(`/shared/quiz/${set.shareToken}`)}
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium text-white group-hover:text-blue-300 transition-colors">{set.title}</p>
+                          {set.description && <p className="text-sm text-slate-400">{set.description}</p>}
+                        </div>
+                        <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-blue-400 flex-shrink-0 transition-colors" />
+                      </button>
                       {isOwner && (
                         <button
                           onClick={() => handleRemoveMaterial(set.id, 'quiz')}
@@ -286,15 +312,61 @@ export const StudyGroupDetailPage: React.FC = () => {
               </div>
             )}
 
-            {(!group.sharedFlashcardSets || group.sharedFlashcardSets.length === 0) &&
-             (!group.sharedQuizSets || group.sharedQuizSets.length === 0) && (
+            {/* Shared Lectures */}
+            {group.sharedLectures && group.sharedLectures.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-white mb-3">📄 Lectures</h3>
+                <div className="space-y-2">
+                  {group.sharedLectures.map((lec) => (
+                    <div key={lec.lectureId} className="p-3 bg-slate-800/50 rounded-lg border border-slate-700 flex items-center justify-between hover:border-emerald-600/40 transition-colors">
+                      <div className="flex-1 min-w-0 mr-3">
+                        <p className="font-medium text-white truncate">{lec.title}</p>
+                        {lec.courseTitle && <p className="text-sm text-slate-400 truncate">{lec.courseTitle}</p>}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {lec.fileUrl && (
+                          <a
+                            href={lec.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-2 hover:bg-emerald-500/10 text-emerald-400 rounded transition-colors"
+                            title="Open PDF"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FileText className="w-4 h-4" />
+                          </a>
+                        )}
+                        <button
+                          onClick={() => navigate(`/lectures/${lec.lectureId}`)}
+                          className="p-2 hover:bg-blue-500/10 text-blue-400 rounded transition-colors"
+                          title="Go to lecture"
+                        >
+                          <ArrowUpRight className="w-4 h-4" />
+                        </button>
+                        {isOwner && (
+                          <button
+                            onClick={() => handleRemoveMaterial(lec.lectureId, 'lecture')}
+                            disabled={removingMaterialId === lec.lectureId}
+                            className="p-2 hover:bg-red-500/10 text-red-400 rounded transition-colors disabled:opacity-50"
+                            title="Remove"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!hasAnyMaterial && (
               <p className="text-slate-400">No materials added yet</p>
             )}
           </div>
         </div>
       </div>
 
-      {/* Modals */}
       {id && (
         <>
           <InviteMemberModal
@@ -303,7 +375,6 @@ export const StudyGroupDetailPage: React.FC = () => {
             onClose={() => setShowInviteModal(false)}
             onSuccess={() => fetchGroupDetail()}
           />
-
           <AddMaterialsModal
             isOpen={showAddMaterialsModal}
             groupId={id}

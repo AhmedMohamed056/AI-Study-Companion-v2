@@ -1,6 +1,8 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import fs from 'fs';
+import path from 'path';
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
@@ -94,6 +96,86 @@ app.get('/api/test-claude', async (req: Request, res: Response) => {
     console.error('[TEST] Error:', error.message);
     console.error('[TEST] Full error:', JSON.stringify(error));
     res.status(500).json({ error: error.message, details: JSON.stringify(error) });
+  }
+});
+
+// Test Email Transporter
+app.get('/api/test-email', async (req: Request, res: Response) => {
+  console.log('[TEST] Testing Email Transporter...');
+  try {
+    const { emailService } = await import('./services/email.js');
+
+    console.log('[TEST] Attempting to send test email...');
+    const result = await emailService.sendGroupInvitation({
+      recipientEmail: 'muhammedreda6@gmail.com',
+      recipientName: 'Test User',
+      groupName: 'Test Study Group',
+      inviterName: 'Admin',
+      acceptLink: 'http://localhost:5173/accept-invitation/test-token-12345',
+    });
+
+    console.log('[TEST] Result:', result);
+
+    res.json({
+      success: true,
+      emailSent: result,
+      credentials: {
+        user: process.env.EMAIL_USER,
+        service: process.env.EMAIL_SERVICE,
+        from: process.env.EMAIL_FROM,
+      }
+    });
+  } catch (error: any) {
+    console.error('[TEST] Error:', error.message);
+    res.status(500).json({ error: error.message, details: JSON.stringify(error) });
+  }
+});
+
+// Debug Transporter
+app.get('/api/debug-email', async (req: Request, res: Response) => {
+  console.log('\n===== [DEBUG EMAIL] =====');
+  console.log('[DEBUG] process.env.EMAIL_SERVICE:', process.env.EMAIL_SERVICE);
+  console.log('[DEBUG] process.env.EMAIL_USER:', process.env.EMAIL_USER);
+  console.log('[DEBUG] process.env.EMAIL_PASSWORD:', process.env.EMAIL_PASSWORD ? '***' : 'UNDEFINED');
+  console.log('[DEBUG] process.env.EMAIL_FROM:', process.env.EMAIL_FROM);
+
+  try {
+    const nodemailer = require('nodemailer');
+
+    // Create a fresh transporter to test
+    const testTransporter = nodemailer.createTransport({
+      service: process.env.EMAIL_SERVICE || 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD,
+      },
+    });
+
+    console.log('[DEBUG] Created test transporter');
+
+    // Verify connection
+    const verified = await testTransporter.verify();
+    console.log('[DEBUG] Transporter verified:', verified);
+
+    res.json({
+      success: true,
+      verified,
+      config: {
+        service: process.env.EMAIL_SERVICE,
+        user: process.env.EMAIL_USER,
+        from: process.env.EMAIL_FROM,
+        hasPassword: !!process.env.EMAIL_PASSWORD,
+      }
+    });
+  } catch (error: any) {
+    console.error('[DEBUG] Error:', error.message);
+    console.error('[DEBUG] Full error:', JSON.stringify(error, null, 2));
+    res.status(500).json({
+      error: error.message,
+      details: error.toString()
+    });
+  } finally {
+    console.log('===== [END DEBUG EMAIL] =====\n');
   }
 });
 

@@ -8,6 +8,43 @@ import { sendSuccess } from '../utils/response.js';
 
 const router = Router();
 
+// Get all flashcards for user (no lectureId required)
+router.get(
+  '/user/all',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    console.log('[FLASHCARDS_ROUTE] GET /user/all - Fetching all flashcards for user:', req.userId);
+
+    const flashcards = await prisma.flashcard.findMany({
+      where: { userId: req.userId },
+      include: {
+        lecture: {
+          select: {
+            id: true,
+            title: true,
+            courseId: true,
+            course: {
+              select: { id: true, title: true },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    console.log('[FLASHCARDS_ROUTE] Found', flashcards.length, 'flashcards');
+
+    // Enrich with source metadata
+    const enriched = flashcards.map(fc => ({
+      ...fc,
+      sourceLectureTitle: fc.lecture.title,
+      sourceLectureCourse: fc.lecture.course?.title,
+      sourceCreatedAt: fc.sourceCreatedAt || fc.createdAt,
+    }));
+
+    return sendSuccess(res, enriched);
+  })
+);
+
 // Get flashcards for a lecture
 router.get(
   '/',

@@ -48,10 +48,12 @@ export const quizService = {
   submitQuiz: (lectureId: string, answers: any[]) =>
     api.post('/quiz/submit', { lectureId, answers }),
   getHistory: () => api.get('/quiz/history'),
+  getLectureHistory: (lectureId: string) => api.get(`/quiz/lecture/${lectureId}`),
 };
 
 export const analyticsService = {
   getAnalytics: () => api.get('/analytics/me'),
+  getActivity: () => api.get('/analytics/activity'),
 };
 
 export const noteService = {
@@ -64,6 +66,8 @@ export const noteService = {
 };
 
 export const studyPlanService = {
-  generateStudyPlan: (examDate: string) =>
-    api.post('/study-plans/generate', { examDate }),
+  getStudyPlan: () => api.get('/study-plans'),
+  generateStudyPlan: (examDate: string, lectureIds?: string[]) =>
+    api.post('/study-plans/generate', { examDate, lectureIds }),
+  deleteStudyPlan: () => api.delete('/study-plans'),
 };

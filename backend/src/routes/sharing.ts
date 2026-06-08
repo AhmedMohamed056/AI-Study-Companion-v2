@@ -353,10 +353,7 @@ router.get(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const sharedSets = await prisma.sharedFlashcardSet.findMany({
       where: {
-        OR: [
-          { sharedWith: { some: { userId: req.userId } } },
-          { isPublic: true },
-        ],
+        sharedWith: { some: { userId: req.userId } },
       },
       include: {
         creator: {
@@ -381,10 +378,7 @@ router.get(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const sharedSets = await prisma.sharedQuizSet.findMany({
       where: {
-        OR: [
-          { sharedWith: { some: { userId: req.userId } } },
-          { isPublic: true },
-        ],
+        sharedWith: { some: { userId: req.userId } },
       },
       include: {
         creator: {
@@ -507,6 +501,7 @@ router.get(
 );
 
 // Get shared quiz set by token (auth required or public)
+// Returns questions for interactive quiz-taking; includes recipient's own attempt if already taken
 router.get(
   '/quiz/:shareToken',
   asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -520,7 +515,9 @@ router.get(
         },
         quizzes: {
           include: {
-            quiz: true,
+            quiz: {
+              include: { questions: true },
+            },
           },
         },
       },
@@ -530,7 +527,6 @@ router.get(
       return res.status(404).json({ error: 'Shared set not found' });
     }
 
-    // Allow access if: public, or user is creator, or user is in sharedWith list
     const isPublic = sharedSet.isPublic;
     const isCreator = sharedSet.createdBy === req.userId;
     const isSharedWithUser = req.userId && await prisma.sharedQuizWith.findUnique({
@@ -541,7 +537,160 @@ router.get(
       return res.status(403).json({ error: 'You do not have access to this set' });
     }
 
-    return sendSuccess(res, sharedSet);
+    // Resolve a letter key (e.g. "B") to the matching full option text (e.g. "B. Some text").
+    // If correct is already full text (matches an option exactly), it is returned as-is.
+    const resolveCorrect = (options: string[], correct: string): string => {
+      if (options.includes(correct)) return correct;
+      const match = options.find(
+        (o) => o.startsWith(correct + '.') || o.startsWith(correct + ')')
+      );
+      return match ?? correct;
+    };
+
+    // Build a flat list of questions from all quizzes in the set, stripped of sender answers.
+    // correct is normalised to full option text so the frontend can compare by value.
+    const questions = sharedSet.quizzes.flatMap((item) =>
+      item.quiz.questions.map((q) => {
+        const opts: string[] = typeof q.options === 'string' ? JSON.parse(q.options) : q.options;
+        return {
+          id: q.id,
+          question: q.question,
+          options: opts,
+          correct: resolveCorrect(opts, q.correct),
+          topic: q.topic,
+          lectureId: item.quiz.lectureId,
+          sourceLectureTitle: item.quiz.sourceLectureTitle,
+        };
+      })
+    );
+
+    // Check if the current authenticated recipient has already taken this quiz set
+    let myAttempt: { score: number; total: number; takenAt: Date; questions: any[] } | null = null;
+    if (req.userId && !isCreator) {
+      const attempt = await prisma.quiz.findFirst({
+        where: { sharedQuizSetId: sharedSet.id, userId: req.userId },
+        orderBy: { takenAt: 'desc' },
+        include: { questions: true },
+      });
+      if (attempt) {
+        myAttempt = {
+          score: attempt.score,
+          total: attempt.total,
+          takenAt: attempt.takenAt,
+          questions: attempt.questions.map((q) => ({
+            id: q.id,
+            question: q.question,
+            options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options,
+            correct: q.correct,
+            userAnswer: q.userAnswer,
+            isCorrect: q.isCorrect,
+            topic: q.topic,
+          })),
+        };
+      }
+    }
+
+    return sendSuccess(res, {
+      id: sharedSet.id,
+      title: sharedSet.title,
+      description: sharedSet.description,
+      creator: sharedSet.creator,
+      isPublic: sharedSet.isPublic,
+      shareToken: sharedSet.shareToken,
+      createdAt: sharedSet.createdAt,
+      questions,
+      myAttempt,
+    });
+  })
+);
+
+// Submit a quiz attempt for a shared quiz set (recipient takes the quiz independently)
+router.post(
+  '/quiz/:shareToken/submit',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { shareToken } = req.params;
+    const { answers, lectureId } = req.body;
+
+    if (!answers || !Array.isArray(answers) || answers.length === 0) {
+      return res.status(400).json({ error: 'answers array is required' });
+    }
+
+    const sharedSet = await prisma.sharedQuizSet.findUnique({
+      where: { shareToken },
+    });
+
+    if (!sharedSet) {
+      return res.status(404).json({ error: 'Shared set not found' });
+    }
+
+    const isPublic = sharedSet.isPublic;
+    const isSharedWithUser = req.userId && await prisma.sharedQuizWith.findUnique({
+      where: { setId_userId: { setId: sharedSet.id, userId: req.userId } },
+    }).catch(() => null);
+
+    if (!isPublic && sharedSet.createdBy !== req.userId && !isSharedWithUser) {
+      return res.status(403).json({ error: 'You do not have access to this set' });
+    }
+
+    // Resolve lectureId from the provided value or first quiz in the set
+    let resolvedLectureId = lectureId;
+    if (!resolvedLectureId) {
+      const firstItem = await prisma.sharedQuizSetItem.findFirst({
+        where: { setId: sharedSet.id },
+        include: { quiz: { select: { lectureId: true } } },
+      });
+      resolvedLectureId = firstItem?.quiz.lectureId;
+    }
+
+    if (!resolvedLectureId) {
+      return res.status(400).json({ error: 'Unable to determine lectureId for submission' });
+    }
+
+    // Score the answers
+    let score = 0;
+    const quizQuestions = answers.map((answer: any) => {
+      const isCorrect = answer.userAnswer === answer.correct;
+      if (isCorrect) score++;
+      return {
+        question: answer.question,
+        options: JSON.stringify(Array.isArray(answer.options) ? answer.options : []),
+        correct: answer.correct,
+        userAnswer: answer.userAnswer,
+        isCorrect,
+        topic: answer.topic || 'General',
+        userId: req.userId!,
+      };
+    });
+
+    // Create a quiz record owned by this recipient, linked back to the shared set
+    const quiz = await prisma.quiz.create({
+      data: {
+        lectureId: resolvedLectureId,
+        userId: req.userId!,
+        score,
+        total: answers.length,
+        sharedQuizSetId: sharedSet.id,
+        sourceLectureTitle: sharedSet.title,
+        sourceCreatedAt: new Date(),
+        questions: { create: quizQuestions },
+      },
+      include: { questions: true },
+    });
+
+    return sendSuccess(res, {
+      score: quiz.score,
+      total: quiz.total,
+      percentage: Math.round((quiz.score / quiz.total) * 100),
+      questions: quiz.questions.map((q) => ({
+        id: q.id,
+        question: q.question,
+        options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options,
+        correct: q.correct,
+        userAnswer: q.userAnswer,
+        isCorrect: q.isCorrect,
+        topic: q.topic,
+      })),
+    }, 201);
   })
 );
 
