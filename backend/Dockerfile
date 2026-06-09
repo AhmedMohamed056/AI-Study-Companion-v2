@@ -1,7 +1,9 @@
 # Stage 1: Build
-FROM node:22-alpine AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
+
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -14,11 +16,12 @@ COPY src ./src/
 RUN npm run build
 
 # Stage 2: Production
-FROM node:22-alpine AS production
+FROM node:22-slim AS production
 
 WORKDIR /app
 
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN apt-get update && apt-get install -y openssl wget && rm -rf /var/lib/apt/lists/*
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
