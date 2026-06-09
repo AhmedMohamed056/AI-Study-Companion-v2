@@ -15,4 +15,4 @@ node_version: "22"
 docker_compose_version: "2.24.0"
 
 # Nginx
-domain_name: "_"
+domain_name: "54.162.235.197"
