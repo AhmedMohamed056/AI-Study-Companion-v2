@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import rateLimit from 'express-rate-limit';
+import {rateLimit} from 'express-rate-limit';
 import * as Sentry from '@sentry/node';
 
 import authRoutes from './routes/auth.js';
@@ -70,7 +70,8 @@ const limiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.ip === '127.0.0.1' || req.ip === '::1',
+  skip: (req: Request) =>
+  req.ip === '127.0.0.1' || req.ip === '::1',
 });
 
 app.use('/api/', limiter);
