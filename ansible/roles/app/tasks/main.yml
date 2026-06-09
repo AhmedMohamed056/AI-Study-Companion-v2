@@ -1,0 +1,57 @@
+---
+# App role - deploy and run the application
+- name: Install ACL package
+  become: true
+  apt:
+    name: acl
+    state: present
+    update_cache: yes
+
+- name: Create application directory
+  file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0755"
+
+- name: Clone application repository
+  git:
+    repo: "{{ repo_url }}"
+    dest: "{{ app_dir }}"
+    version: "{{ repo_branch }}"
+    force: true
+  become_user: "{{ app_user }}"
+
+- name: Copy backend environment file
+  template:
+    src: ../../templates/.env.j2
+    dest: "{{ app_dir }}/backend/.env"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0600"
+
+- name: Build and start Docker containers
+  command: docker compose -f docker-compose.prod.yml up -d --build
+  args:
+    chdir: "{{ app_dir }}"
+  become_user: "{{ app_user }}"
+
+- name: Wait for backend to be healthy
+  uri:
+    url: "http://127.0.0.1:3000/api"
+    status_code: [200, 404]
+  register: health_check
+  retries: 10
+  delay: 5
+  until: health_check.status in [200, 404]
+
+- name: Run Prisma migrations
+  command: docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy
+  args:
+    chdir: "{{ app_dir }}"
+  become_user: "{{ app_user }}"
+  register: prisma_migrate
+  failed_when:
+    - prisma_migrate.rc != 0
+    - "'P3005' not in prisma_migrate.stderr"

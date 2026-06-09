@@ -1,0 +1,18 @@
+---
+# Global Variables
+
+# Application
+app_name: studyai
+app_user: studyai
+app_dir: /home/studyai/app
+repo_url: https://github.com/Kerolos129Yousef/AI-Study-Companion.git
+repo_branch: main
+
+# Node.js
+node_version: "22"
+
+# Docker
+docker_compose_version: "2.24.0"
+
+# Nginx
+domain_name: "_"

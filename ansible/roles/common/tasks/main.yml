@@ -1,0 +1,70 @@
+---
+# Common role - system packages, firewall, deployment user
+
+- name: Update apt cache
+  apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install essential packages
+  apt:
+    name:
+      - git
+      - curl
+      - wget
+      - unzip
+      - apt-transport-https
+      - ca-certificates
+      - gnupg
+      - lsb-release
+      - software-properties-common
+      - ufw
+    state: present
+
+- name: Configure UFW - deny all incoming by default
+  ufw:
+    direction: incoming
+    policy: deny
+
+- name: Configure UFW - allow all outgoing
+  ufw:
+    direction: outgoing
+    policy: allow
+
+- name: Configure UFW - allow SSH
+  ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+
+- name: Configure UFW - allow HTTP
+  ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+
+- name: Configure UFW - allow HTTPS
+  ufw:
+    rule: allow
+    port: "443"
+    proto: tcp
+
+- name: Enable UFW
+  ufw:
+    state: enabled
+
+- name: Create deployment user
+  user:
+    name: "{{ app_user }}"
+    shell: /bin/bash
+    create_home: true
+    groups: sudo
+    append: true
+
+- name: Allow deployment user passwordless sudo
+  lineinfile:
+    path: /etc/sudoers.d/{{ app_user }}
+    line: "{{ app_user }} ALL=(ALL) NOPASSWD:ALL"
+    create: true
+    mode: "0440"
+    validate: "visudo -cf %s"
