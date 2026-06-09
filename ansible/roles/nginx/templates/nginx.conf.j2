@@ -13,6 +13,9 @@ server {
     listen 80;
     server_name {{ domain_name }};
 
+    # Max upload size (for PDF uploads)
+    client_max_body_size 50M;
+
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
@@ -35,8 +38,8 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_read_timeout 60s;
-        proxy_send_timeout 60s;
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
     }
 
     # Frontend
