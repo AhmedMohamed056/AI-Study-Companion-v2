@@ -1,10 +1,6 @@
-# StudyAI Production Docker Compose
-
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: kerolosyousef/studyai-backend:latest
     container_name: studyai-backend
     restart: unless-stopped
     ports:
@@ -21,11 +17,7 @@ services:
       start_period: 40s
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_URL: http://54.162.235.197/api
+    image: kerolosyousef/studyai-frontend:latest
     container_name: studyai-frontend
     restart: unless-stopped
     ports:
