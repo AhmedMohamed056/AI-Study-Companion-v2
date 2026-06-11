@@ -147,7 +147,7 @@ app.get('/api/debug-email', async (req: Request, res: Response) => {
   console.log('[DEBUG] process.env.EMAIL_FROM:', process.env.EMAIL_FROM);
 
   try {
-    const nodemailer = require('nodemailer');
+    const nodemailer = await import('nodemailer');
 
     // Create a fresh transporter to test
     const testTransporter = nodemailer.createTransport({

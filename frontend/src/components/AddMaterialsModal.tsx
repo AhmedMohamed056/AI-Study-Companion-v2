@@ -70,7 +70,7 @@ const AddMaterialsModalContent: React.FC<AddMaterialsModalProps> = ({
         setMaterials(formatted);
       }
       // lecture type is handled via the courses query, not here
-    } catch (err: any) {
+    } catch {
       setError('Failed to load your materials');
     } finally {
       setFetchingMaterials(false);
