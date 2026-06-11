@@ -96,7 +96,9 @@ jobs:
   
             sudo bash -c '
               cd /home/studyai/app &&
-              docker compose -f docker-compose.prod.yml up -d
+              git pull origin main &&
+              docker compose -f docker-compose.prod.yml pull &&
+              docker compose -f docker-compose.prod.yml up -d --force-recreate
             '
   
             sudo docker ps
