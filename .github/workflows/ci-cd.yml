@@ -82,16 +82,28 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-      - name: Deploy to EC2
+
+
+      - name: Test SSH
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
+          username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
+          debug: true
           script: |
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/studyai-frontend:latest
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/studyai-backend:latest
-            cd /home/studyai/app
-            docker compose -f docker-compose.prod.yml up -d
-            curl --retry 5 --retry-delay 5 http://localhost:3000/api
-            curl --retry 5 --retry-delay 5 http://localhost:3001
+            whoami
+            hostname
+          # - name: Deploy to EC2
+      #   uses: appleboy/ssh-action@v1
+      #   with:
+      #     host: ${{ secrets.EC2_HOST }}
+      #     username: ${{ secrets.EC2_USERNAME }}
+      #     key: ${{ secrets.EC2_SSH_KEY }}
+      #     script: |
+      #       docker pull ${{ secrets.DOCKERHUB_USERNAME }}/studyai-frontend:latest
+      #       docker pull ${{ secrets.DOCKERHUB_USERNAME }}/studyai-backend:latest
+      #       cd /home/studyai/app
+      #       docker compose -f docker-compose.prod.yml up -d
+      #       curl --retry 5 --retry-delay 5 http://localhost:3000/api
+      #       curl --retry 5 --retry-delay 5 http://localhost:3001
