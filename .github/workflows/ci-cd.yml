@@ -89,16 +89,16 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            set -e
-  
-            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/studyai-frontend:latest
-            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/studyai-backend:latest
-  
-            sudo bash -c '
-              cd /home/studyai/app &&
-              git pull origin main &&
-              docker compose -f docker-compose.prod.yml pull &&
-              docker compose -f docker-compose.prod.yml up -d --force-recreate
-            '
-  
-            sudo docker ps
+              set -e
+            
+              sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/studyai-frontend:latest
+              sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/studyai-backend:latest
+            
+              sudo -u studyai git -C /home/studyai/app pull origin main
+            
+              sudo bash -c '
+                cd /home/studyai/app &&
+                docker compose -f docker-compose.prod.yml up -d --force-recreate
+              '
+            
+              sudo docker ps
