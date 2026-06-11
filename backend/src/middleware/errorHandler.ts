@@ -19,6 +19,7 @@ export const errorHandler = (err: ApiError, req: Request, res: Response, next: N
   });
 };
 
-export const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) => (req: Request, res: Response, next: NextFunction) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const asyncHandler = (fn: (req: any, res: Response, next: NextFunction) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
