@@ -5,6 +5,10 @@ on:
     branches: [main]
   push:
     branches: [main]
+    
+permissions:
+  contents: read
+  security-events: write
 
 jobs:
   ci:
@@ -78,7 +82,13 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/studyai-backend:${{ github.sha }}
             ${{ secrets.DOCKERHUB_USERNAME }}/studyai-backend:latest
-  
+
+
+      - name: Upload Docker Scout SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: scout-results.sarif
+
   cd:
     name: CD
     runs-on: ubuntu-latest
