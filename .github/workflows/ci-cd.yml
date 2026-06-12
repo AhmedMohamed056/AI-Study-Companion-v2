@@ -67,7 +67,7 @@ jobs:
       - name: Docker Scout Frontend Scan
         uses: docker/scout-action@v1
         with:
-          command: quickview
+          command: cves
           image: studyai-frontend:scan
 
       - name: Build and push backend image
