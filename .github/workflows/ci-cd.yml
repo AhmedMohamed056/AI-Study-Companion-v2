@@ -73,19 +73,13 @@ jobs:
         with:
           command: cves
           image: studyai-frontend:scan
-
-      - name: Build and push backend image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/studyai-backend:${{ github.sha }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/studyai-backend:latest
-
-
+          sarif-file: scout-results.sarif
+    
+      - name: Verify SARIF file exists
+        run: ls -lah
+      
       - name: Upload Docker Scout SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: scout-results.sarif
 
