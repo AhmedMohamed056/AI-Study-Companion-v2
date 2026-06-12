@@ -69,7 +69,13 @@ async function callGroqWithRetry(
       console.log('[GROQ] API Response received, length:', text.length);
       console.log('[GROQ] Response preview:', text.substring(0, 200));
 
-      const parsed = JSON.parse(text);
+      // Strip markdown code fences if present
+      let cleanText = text.trim();
+      if (cleanText.startsWith('```')) {
+        cleanText = cleanText.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+      }
+
+      const parsed = JSON.parse(cleanText);
       console.log('[GROQ] Successfully parsed JSON');
       return parsed;
     } catch (error: any) {
@@ -129,7 +135,11 @@ async function callGroqWithRetry(
           }
 
           console.log('[GROQ] Final attempt response received');
-          const parsed = JSON.parse(text);
+          let cleanRetryText = text.trim();
+          if (cleanRetryText.startsWith('```')) {
+            cleanRetryText = cleanRetryText.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+          }
+          const parsed = JSON.parse(cleanRetryText);
           console.log('[GROQ] Final attempt succeeded');
           return parsed;
         } catch (retryError: any) {
