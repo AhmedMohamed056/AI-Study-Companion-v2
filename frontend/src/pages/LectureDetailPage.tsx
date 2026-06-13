@@ -2,14 +2,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { lectureService, flashcardService, quizService, noteService } from '../services';
 import { sharingAPI } from '../services/api';
-import { useAuthStore } from '../store/auth';
 import { LoadingSpinner } from '../components/Common';
 import Layout from '../components/Layout';
 import { useState, useEffect } from 'react';
 import {
   ArrowLeft, Sparkles, Plus, Edit2, Trash2, Calendar, FileText,
-  CreditCard, HelpCircle, Share2, ChevronDown, ChevronUp,
-  Clock, Check, X, BookOpen, Info, Brain, RotateCw, AlertCircle,
+  CreditCard, HelpCircle, Share2, ChevronDown, ChevronUp, Check, X, BookOpen, Info, AlertCircle,
   CheckCircle,
 } from 'lucide-react';
 import { ShareModal } from '../components/ShareModal';

@@ -5,8 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import {
   BookOpen, CreditCard, CheckCircle2, TrendingUp, ArrowRight,
-  Brain, Clock, FileText, Zap, Sparkles, RotateCcw, Trash2,
-  ChevronDown, X, Plus, Activity, Calendar, Target,
+  Brain, Clock, FileText, Sparkles, RotateCcw, Trash2,
+  ChevronDown, X, Activity, Target,
 } from 'lucide-react';
 import { useState, useMemo, useRef, useEffect } from 'react';
 
